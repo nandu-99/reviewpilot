@@ -113,6 +113,8 @@ describe("IssuePilot plan generation", () => {
 
     expect(generated.generatedAt).toBe("2026-08-21T00:00:00.000Z");
     expect(generate).toHaveBeenCalledWith("test-model", expect.not.stringContaining("super-secret-value"));
+    expect(generate).toHaveBeenCalledWith("test-model", expect.stringContaining("Produce at most 30 tasks"));
+    expect(generate).toHaveBeenCalledWith("test-model", expect.stringContaining("below 2500 characters"));
   });
 
   it("retries a failed model response and validates the next result", async () => {
