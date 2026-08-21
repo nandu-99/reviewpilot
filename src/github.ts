@@ -133,7 +133,7 @@ export class GitHubClient {
     return {
       Accept: accept,
       "X-GitHub-Api-Version": "2022-11-28",
-      "User-Agent": "ReviewPilot/1.0",
+      "User-Agent": "ReviewPilot/1.1",
       ...(this.token ? { Authorization: `Bearer ${this.token}` } : {})
     };
   }

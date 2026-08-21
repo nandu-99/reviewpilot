@@ -1,0 +1,91 @@
+name: IssuePilot Project Scheduler
+description: Generate an approved project plan or create dependency-ready GitHub issues.
+author: nandu-99
+
+inputs:
+  mode:
+    description: Operation to run, either plan or sync.
+    required: true
+  github-token:
+    description: GitHub token used to inspect progress and create approved issues.
+    required: true
+  gemini-api-key:
+    description: Gemini API key used only in plan mode.
+    required: false
+    default: ""
+  openrouter-api-key:
+    description: OpenRouter API key used only when selected in plan mode.
+    required: false
+    default: ""
+  provider:
+    description: Planning provider, gemini or openrouter.
+    required: false
+    default: gemini
+  model:
+    description: Optional planning model override.
+    required: false
+    default: ""
+  config:
+    description: Path to IssuePilot configuration in the target repository.
+    required: false
+    default: .issuepilot/config.yml
+  plan:
+    description: Path to the approved IssuePilot plan.
+    required: false
+    default: .issuepilot/plan.yml
+
+runs:
+  using: composite
+  steps:
+    - name: Validate mode
+      shell: bash
+      env:
+        ISSUEPILOT_MODE: ${{ inputs.mode }}
+      run: |
+        if [[ "$ISSUEPILOT_MODE" != "plan" && "$ISSUEPILOT_MODE" != "sync" ]]; then
+          echo "IssuePilot mode must be plan or sync." >&2
+          exit 1
+        fi
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v6
+      with:
+        node-version: "22"
+        package-manager-cache: false
+
+    - name: Install IssuePilot
+      shell: bash
+      run: npm ci --ignore-scripts --prefix "$GITHUB_ACTION_PATH/.."
+
+    - name: Build IssuePilot
+      shell: bash
+      run: npm run build --prefix "$GITHUB_ACTION_PATH/.."
+
+    - name: Generate project plan
+      if: inputs.mode == 'plan'
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        GEMINI_API_KEY: ${{ inputs.gemini-api-key }}
+        OPENROUTER_API_KEY: ${{ inputs.openrouter-api-key }}
+        AI_PROVIDER: ${{ inputs.provider }}
+        ISSUEPILOT_MODEL: ${{ inputs.model }}
+        ISSUEPILOT_CONFIG: ${{ inputs.config }}
+        ISSUEPILOT_PLAN: ${{ inputs.plan }}
+      run: |
+        args=(issuepilot plan --config "$ISSUEPILOT_CONFIG" --output "$ISSUEPILOT_PLAN" --provider "$AI_PROVIDER")
+        if [[ -n "$ISSUEPILOT_MODEL" ]]; then args+=(--model "$ISSUEPILOT_MODEL"); fi
+        node "$GITHUB_ACTION_PATH/../dist/cli.js" "${args[@]}"
+
+    - name: Synchronize approved issues
+      if: inputs.mode == 'sync'
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        ISSUEPILOT_CONFIG: ${{ inputs.config }}
+        ISSUEPILOT_PLAN: ${{ inputs.plan }}
+      run: node "$GITHUB_ACTION_PATH/../dist/cli.js" issuepilot sync --config "$ISSUEPILOT_CONFIG" --plan "$ISSUEPILOT_PLAN" --apply
+
+branding:
+  icon: calendar
+  color: purple

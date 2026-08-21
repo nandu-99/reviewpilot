@@ -7,5 +7,11 @@ export { OpenRouterClient, modelReviewSchema, parseModelReview } from "./openrou
 export { generateReviewWithFallback, providerCacheIdentity, type ConfiguredReviewProvider, type ReviewModelClient } from "./providers.js";
 export { renderMarkdownReport, writeReports } from "./report.js";
 export { executeReview, verifyFindings, type ReviewExecution, type ReviewOptions } from "./reviewer.js";
+export { loadIssuePilotConfig } from "./issuepilot/config.js";
+export { generateIssuePilotPlan, GeminiIssuePlanClient, OpenRouterIssuePlanClient } from "./issuepilot/generator.js";
+export { GitHubIssuePilotRepository } from "./issuepilot/github.js";
+export { loadIssuePilotPlan, validateIssuePilotPlan, writeIssuePilotPlan } from "./issuepilot/plan.js";
+export { evaluateTaskProgress, syncIssuePilot } from "./issuepilot/sync.js";
+export type * from "./issuepilot/types.js";
 export { redactSecrets, isSensitivePath } from "./security.js";
 export type * from "./types.js";

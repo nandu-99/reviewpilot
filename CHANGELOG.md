@@ -2,6 +2,18 @@
 
 All notable changes to ReviewPilot are documented in this file.
 
+## [1.1.0] - 2026-08-21
+
+### Added
+
+- IssuePilot project planning from repository-owned project documents and issue templates.
+- Version-controlled `.issuepilot/plan.yml` approval workflow.
+- Dependency-aware and developer-sequential issue scheduling.
+- Progress detection from merged closing PRs and approved manual completions.
+- Duplicate-safe managed issue creation with stable task markers.
+- Event-driven GitHub Actions workflows for plan approval and task synchronization.
+- Dry-run synchronization for inspecting which tasks are ready without creating issues.
+
 ## [1.0.0] - 2026-08-21
 
 ReviewPilot's first stable release.

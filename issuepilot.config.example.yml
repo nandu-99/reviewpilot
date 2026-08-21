@@ -1,0 +1,11 @@
+repository: nandu-99/assessment-platform
+projectDocument: PROJECT_CONTEXT.md
+issueTemplate: ISSUE_FORMAT.md
+managedLabel: issuepilot
+manualCompletionLabel: completed-manually
+
+team:
+  - github: Roshan-Merugu
+    role: backend
+  - github: vaishh-samala
+    role: frontend

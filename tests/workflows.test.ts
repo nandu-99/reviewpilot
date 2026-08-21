@@ -40,4 +40,18 @@ describe("GitHub automation", () => {
     expect(source).not.toMatch(/contents:\s*write/);
     expect(source).not.toContain("pull_request_target");
   });
+
+  it("defines approval-controlled IssuePilot planning and event-driven synchronization", async () => {
+    const actionSource = await readFile(path.join(root, "issuepilot", "action.yml"), "utf8");
+    const planSource = await readFile(path.join(root, "examples", "issuepilot-plan.yml"), "utf8");
+    const syncSource = await readFile(path.join(root, "examples", "issuepilot-sync.yml"), "utf8");
+
+    expect(actionSource).toContain("issuepilot sync");
+    expect(actionSource).toContain("--apply");
+    expect(planSource).toContain("workflow_dispatch");
+    expect(planSource).toContain("gh pr create");
+    expect(syncSource).toContain("types: [closed]");
+    expect(syncSource).toContain("types: [closed, labeled]");
+    expect(syncSource).not.toContain("pull_request_target");
+  });
 });

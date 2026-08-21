@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import "dotenv/config";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { Command } from "commander";
 import { loadConfig } from "./config.js";
@@ -10,6 +11,11 @@ import { OpenRouterClient } from "./openrouter.js";
 import type { ConfiguredReviewProvider } from "./providers.js";
 import { renderPullRequestComment, REVIEWPILOT_COMMENT_MARKER, writeReports } from "./report.js";
 import { executeReview } from "./reviewer.js";
+import { loadIssuePilotConfig } from "./issuepilot/config.js";
+import { GeminiIssuePlanClient, generateIssuePilotPlan, OpenRouterIssuePlanClient } from "./issuepilot/generator.js";
+import { GitHubIssuePilotRepository } from "./issuepilot/github.js";
+import { loadIssuePilotPlan, writeIssuePilotPlan } from "./issuepilot/plan.js";
+import { syncIssuePilot } from "./issuepilot/sync.js";
 
 interface CliOptions {
   config?: string;
@@ -29,7 +35,13 @@ const program = new Command();
 program
   .name("reviewpilot")
   .description("Repository-aware pull request reviews with OpenRouter")
-  .version("1.0.0");
+  .version("1.1.0");
+
+function reportCliError(product: "ReviewPilot" | "IssuePilot", error: unknown): void {
+  const prefix = error instanceof ReviewPilotError ? `[${error.code}] ` : "";
+  process.stderr.write(`${product} failed: ${prefix}${toErrorMessage(error)}\n`);
+  process.exitCode = 1;
+}
 
 program
   .command("review")
@@ -131,9 +143,73 @@ program
         `Markdown: ${paths.markdownPath}\nJSON: ${paths.jsonPath}\n${commentOutput}`
       );
     } catch (error) {
-      const prefix = error instanceof ReviewPilotError ? `[${error.code}] ` : "";
-      process.stderr.write(`ReviewPilot failed: ${prefix}${toErrorMessage(error)}\n`);
-      process.exitCode = 1;
+      reportCliError("ReviewPilot", error);
+    }
+  });
+
+const issuePilot = program.command("issuepilot").description("Plan and release dependency-aware GitHub issues");
+
+issuePilot
+  .command("plan")
+  .description("Generate an approval-ready .issuepilot/plan.yml from repository documents")
+  .option("-c, --config <path>", "IssuePilot configuration file", ".issuepilot/config.yml")
+  .option("-o, --output <path>", "generated plan path", ".issuepilot/plan.yml")
+  .option("--provider <provider>", "AI provider: gemini or openrouter")
+  .option("-m, --model <model>", "provider model ID")
+  .action(async (options: { config: string; output: string; provider?: string; model?: string }) => {
+    try {
+      const cwd = process.cwd();
+      const config = await loadIssuePilotConfig(cwd, options.config);
+      const githubToken = process.env.GITHUB_TOKEN;
+      if (!githubToken) throw new ReviewPilotError("MISSING_GITHUB_TOKEN", "GITHUB_TOKEN is required to inspect project progress.");
+      const repository = new GitHubIssuePilotRepository(config.repository, githubToken);
+      process.stderr.write("→ Reading the project document and issue template...\n");
+      const [projectDocument, issueTemplate, issues, pullRequests] = await Promise.all([
+        readFile(path.resolve(cwd, config.projectDocument), "utf8"),
+        readFile(path.resolve(cwd, config.issueTemplate), "utf8"),
+        repository.listIssues(),
+        repository.listPullRequests()
+      ]);
+      const provider = (options.provider ?? process.env.AI_PROVIDER ?? (process.env.GEMINI_API_KEY ? "gemini" : "openrouter")).toLowerCase();
+      const client = provider === "gemini"
+        ? new GeminiIssuePlanClient(process.env.GEMINI_API_KEY ?? "")
+        : provider === "openrouter"
+          ? new OpenRouterIssuePlanClient(process.env.OPENROUTER_API_KEY ?? "")
+          : undefined;
+      if (!client) throw new ReviewPilotError("INVALID_AI_PROVIDER", "AI provider must be gemini or openrouter.");
+      const model = options.model ?? (provider === "gemini"
+        ? process.env.GEMINI_MODEL ?? "gemini-2.5-flash"
+        : process.env.OPENROUTER_MODEL ?? "openrouter/free");
+      process.stderr.write(`→ Generating a structured project plan with ${provider}/${model}...\n`);
+      const plan = await generateIssuePilotPlan({ config, projectDocument, issueTemplate, issues, pullRequests, client, model });
+      const output = await writeIssuePilotPlan(cwd, plan, options.output);
+      process.stdout.write(`IssuePilot plan generated: ${plan.tasks.length} task(s).\nPlan: ${output}\nReview and merge this file through a pull request to approve it.\n`);
+    } catch (error) {
+      reportCliError("IssuePilot", error);
+    }
+  });
+
+issuePilot
+  .command("sync")
+  .description("Evaluate approved tasks and optionally create the next eligible issues")
+  .option("-c, --config <path>", "IssuePilot configuration file", ".issuepilot/config.yml")
+  .option("-p, --plan <path>", "approved plan path", ".issuepilot/plan.yml")
+  .option("--apply", "create eligible GitHub issues", false)
+  .action(async (options: { config: string; plan: string; apply: boolean }) => {
+    try {
+      const cwd = process.cwd();
+      const githubToken = process.env.GITHUB_TOKEN;
+      if (!githubToken) throw new ReviewPilotError("MISSING_GITHUB_TOKEN", "GITHUB_TOKEN is required to synchronize issues.");
+      const config = await loadIssuePilotConfig(cwd, options.config);
+      const plan = await loadIssuePilotPlan(cwd, config, options.plan);
+      const repository = new GitHubIssuePilotRepository(config.repository, githubToken);
+      const result = await syncIssuePilot(config, plan, repository, options.apply);
+      for (const item of result.progress) process.stdout.write(`${item.task.id}: ${item.state} — ${item.reason}\n`);
+      for (const issue of result.created) process.stdout.write(`Created ${issue.taskId}: ${issue.url}\n`);
+      for (const issue of result.wouldCreate) process.stdout.write(`Would create ${issue.taskId} for ${issue.assignee}: ${issue.title}\n`);
+      if (!options.apply) process.stdout.write("Dry run only. Re-run with --apply to create eligible issues.\n");
+    } catch (error) {
+      reportCliError("IssuePilot", error);
     }
   });
 

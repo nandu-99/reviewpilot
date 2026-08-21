@@ -1,0 +1,52 @@
+name: Generate IssuePilot Plan
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: read
+  pull-requests: write
+
+concurrency:
+  group: issuepilot-plan
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out the default branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Generate IssuePilot plan
+        uses: nandu-99/reviewpilot/issuepilot@v1
+        with:
+          mode: plan
+          github-token: ${{ github.token }}
+          gemini-api-key: ${{ secrets.GEMINI_API_KEY }}
+
+      - name: Open plan approval pull request
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUEPILOT_BRANCH: issuepilot/project-plan-${{ github.run_id }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$ISSUEPILOT_BRANCH"
+          git add .issuepilot/plan.yml
+          if git diff --cached --quiet; then
+            echo "The generated plan did not change."
+            exit 0
+          fi
+          git commit -m "plan: generate IssuePilot project roadmap"
+          git push origin "$ISSUEPILOT_BRANCH"
+          gh pr create \
+            --base "${{ github.event.repository.default_branch }}" \
+            --head "$ISSUEPILOT_BRANCH" \
+            --title "Approve IssuePilot project plan" \
+            --body "Review the generated \`.issuepilot/plan.yml\`. Merging this PR approves the plan and allows IssuePilot to create the first eligible task for each developer."

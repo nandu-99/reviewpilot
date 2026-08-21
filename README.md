@@ -4,6 +4,8 @@ ReviewPilot is a cautious, repository-aware pull request review agent for GitHub
 
 ReviewPilot never modifies the reviewed repository or installs dependencies. Validation and GitHub comment publishing remain opt-in through `--run-checks` and `--post-comment`.
 
+ReviewPilot also includes **IssuePilot**, an approval-controlled project scheduler that turns repository documentation into a dependency-aware issue plan and releases one eligible task per developer as prior work is completed.
+
 ## Requirements
 
 - Node.js 22 or newer
@@ -145,6 +147,71 @@ reviewpilot review <PR_URL> --no-linked-issues
 ```
 
 An explicit `--issue` is still used with `--no-linked-issues`; that flag disables automatic detection only. Issue titles and descriptions are secret-redacted before model analysis and report persistence. Issue content and its `updated_at` value are part of the cache identity, so editing requirements causes a fresh review even when the PR commit is unchanged.
+
+## IssuePilot project scheduling
+
+IssuePilot reads a project document and issue template from each target repository, inspects existing issues and pull requests, and generates `.issuepilot/plan.yml`. The plan is proposed through a pull request; merging that PR is the project lead's approval.
+
+After approval, IssuePilot creates at most one eligible issue per configured developer. It creates the next task only when every declared dependency and every earlier task for that developer is complete.
+
+A task is complete when either:
+
+- a pull request containing `Closes #<issue-number>` is merged; or
+- the issue is closed with the configured `completed-manually` label.
+
+An issue closed without either condition is treated as cancelled and does not unlock later work.
+
+### Repository setup
+
+Commit the project document and issue template to the target repository. Copy [`issuepilot.config.example.yml`](issuepilot.config.example.yml) to `.issuepilot/config.yml` and customize the repository and team:
+
+```yaml
+repository: nandu-99/assessment-platform
+projectDocument: PROJECT_CONTEXT.md
+issueTemplate: ISSUE_FORMAT.md
+managedLabel: issuepilot
+manualCompletionLabel: completed-manually
+
+team:
+  - github: Roshan-Merugu
+    role: backend
+  - github: vaishh-samala
+    role: frontend
+```
+
+The configured users must be assignable collaborators in the target repository.
+
+Copy these workflows into the target repository:
+
+- [`examples/issuepilot-plan.yml`](examples/issuepilot-plan.yml) → `.github/workflows/issuepilot-plan.yml`
+- [`examples/issuepilot-sync.yml`](examples/issuepilot-sync.yml) → `.github/workflows/issuepilot-sync.yml`
+
+The planning workflow reuses `GEMINI_API_KEY` by default. OpenRouter is also supported through the action inputs. Synchronization does not call an AI model and needs no model API key.
+
+### Approval and execution flow
+
+1. Run **Generate IssuePilot Plan** manually from the Actions tab.
+2. IssuePilot reads the configured documents and current GitHub progress.
+3. It opens a PR containing `.issuepilot/plan.yml`.
+4. Review and edit task ordering, descriptions, assignments, dependencies, and historical mappings.
+5. Merge the plan PR to approve it.
+6. The synchronization workflow creates the first eligible frontend and backend issues.
+7. Developers link their work with `Closes #<issue-number>`.
+8. Merging a linked PR automatically releases the next eligible issue.
+
+To inspect scheduling without writing to GitHub:
+
+```bash
+node dist/cli.js issuepilot sync
+```
+
+To apply the approved plan manually:
+
+```bash
+node dist/cli.js issuepilot sync --apply
+```
+
+IssuePilot manages only tasks represented in the approved plan and issues containing its hidden task marker. It does not modify source code, merge PRs, or automatically approve its generated plan.
 
 ## Configuration
 

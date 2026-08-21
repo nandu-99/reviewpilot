@@ -1,0 +1,37 @@
+name: Synchronize IssuePilot Tasks
+
+on:
+  pull_request:
+    types: [closed]
+  issues:
+    types: [closed, labeled]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+concurrency:
+  group: issuepilot-sync-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'issues' ||
+      github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the approved default branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Create the next eligible issues
+        uses: nandu-99/reviewpilot/issuepilot@v1
+        with:
+          mode: sync
+          github-token: ${{ github.token }}
