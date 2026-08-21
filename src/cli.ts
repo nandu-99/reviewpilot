@@ -181,7 +181,20 @@ issuePilot
         ? process.env.GEMINI_MODEL ?? "gemini-2.5-flash"
         : process.env.OPENROUTER_MODEL ?? "openrouter/free");
       process.stderr.write(`→ Generating a structured project plan with ${provider}/${model}...\n`);
-      const plan = await generateIssuePilotPlan({ config, projectDocument, issueTemplate, issues, pullRequests, client, model });
+      const plan = await generateIssuePilotPlan({
+        config,
+        projectDocument,
+        issueTemplate,
+        issues,
+        pullRequests,
+        client,
+        model,
+        onRetry: (attempt, maxAttempts, reason) => {
+          process.stderr.write(
+            `\u2192 Plan generation failed (${reason.slice(0, 300)}). Retrying attempt ${attempt}/${maxAttempts}...\n`
+          );
+        }
+      });
       const output = await writeIssuePilotPlan(cwd, plan, options.output);
       process.stdout.write(`IssuePilot plan generated: ${plan.tasks.length} task(s).\nPlan: ${output}\nReview and merge this file through a pull request to approve it.\n`);
     } catch (error) {

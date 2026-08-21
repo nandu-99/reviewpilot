@@ -114,6 +114,52 @@ describe("IssuePilot plan generation", () => {
     expect(generated.generatedAt).toBe("2026-08-21T00:00:00.000Z");
     expect(generate).toHaveBeenCalledWith("test-model", expect.not.stringContaining("super-secret-value"));
   });
+
+  it("retries a failed model response and validates the next result", async () => {
+    const generate = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("invalid JSON"))
+      .mockResolvedValueOnce({
+        project: "Platform",
+        tasks: [task("backend-1", "backend-dev", "backend")]
+      });
+    const onRetry = vi.fn();
+
+    const generated = await generateIssuePilotPlan({
+      config,
+      projectDocument: "Build an API.",
+      issueTemplate: "## Objective\nDescribe the task.",
+      issues: [],
+      pullRequests: [],
+      client: { generate },
+      model: "test-model",
+      retryDelayMilliseconds: 0,
+      onRetry
+    });
+
+    expect(generated.tasks).toHaveLength(1);
+    expect(generate).toHaveBeenCalledTimes(2);
+    expect(generate.mock.calls[1]?.[1]).toContain("previous response failed validation: invalid JSON");
+    expect(onRetry).toHaveBeenCalledWith(2, 3, "invalid JSON");
+  });
+
+  it("fails clearly after exhausting all plan attempts", async () => {
+    const generate = vi.fn().mockRejectedValue(new Error("operation aborted"));
+
+    await expect(generateIssuePilotPlan({
+      config,
+      projectDocument: "Build an API.",
+      issueTemplate: "## Objective\nDescribe the task.",
+      issues: [],
+      pullRequests: [],
+      client: { generate },
+      model: "test-model",
+      maxAttempts: 3,
+      retryDelayMilliseconds: 0
+    })).rejects.toThrow(/after 3 attempts.*operation aborted/i);
+
+    expect(generate).toHaveBeenCalledTimes(3);
+  });
 });
 
 describe("IssuePilot synchronization", () => {

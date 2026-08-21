@@ -22,6 +22,19 @@ export interface IssuePlanModelClient {
   generate(model: string, prompt: string): Promise<unknown>;
 }
 
+const DEFAULT_PLAN_ATTEMPTS = 3;
+const DEFAULT_RETRY_DELAY_MILLISECONDS = 1_500;
+const PLAN_REQUEST_TIMEOUT_MILLISECONDS = 180_000;
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function wait(milliseconds: number): Promise<void> {
+  if (milliseconds <= 0) return;
+  await new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
 function parseJsonObject(content: string): unknown {
   const clean = content.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
   const start = clean.indexOf("{");
@@ -44,7 +57,7 @@ export class GeminiIssuePlanClient implements IssuePlanModelClient {
 
   async generate(model: string, prompt: string): Promise<unknown> {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 120_000);
+    const timer = setTimeout(() => controller.abort(), PLAN_REQUEST_TIMEOUT_MILLISECONDS);
     timer.unref();
     try {
       const response = await this.client.models.generateContent({
@@ -80,7 +93,7 @@ export class OpenRouterIssuePlanClient implements IssuePlanModelClient {
 
   async generate(model: string, prompt: string): Promise<unknown> {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 120_000);
+    const timer = setTimeout(() => controller.abort(), PLAN_REQUEST_TIMEOUT_MILLISECONDS);
     timer.unref();
     try {
       const response = await this.fetchImpl(`${this.baseUrl}/chat/completions`, {
@@ -144,6 +157,9 @@ export async function generateIssuePilotPlan(input: {
   client: IssuePlanModelClient;
   model: string;
   now?: Date;
+  maxAttempts?: number;
+  retryDelayMilliseconds?: number;
+  onRetry?: (attempt: number, maxAttempts: number, reason: string) => void;
 }): Promise<IssuePilotPlan> {
   const safeProject = redactSecrets(input.projectDocument).value.slice(0, 100000);
   const safeTemplate = redactSecrets(input.issueTemplate).value.slice(0, 30000);
@@ -175,12 +191,37 @@ ${safeTemplate}
 CURRENT GITHUB PROGRESS
 ${progressSnapshot(input.issues, input.pullRequests)}`;
 
-  const generated = generatedPlanSchema.parse(await input.client.generate(input.model, prompt));
-  return validateIssuePilotPlan({
-    version: 1,
-    project: generated.project,
-    repository: input.config.repository,
-    generatedAt: (input.now ?? new Date()).toISOString(),
-    tasks: generated.tasks
-  }, input.config);
+  const maxAttempts = input.maxAttempts ?? DEFAULT_PLAN_ATTEMPTS;
+  const retryDelayMilliseconds = input.retryDelayMilliseconds ?? DEFAULT_RETRY_DELAY_MILLISECONDS;
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const retryInstruction = lastError
+      ? `\n\nRETRY REQUIREMENT\nThe previous response failed validation: ${errorMessage(lastError).slice(0, 500)}\nReturn a complete JSON object that strictly matches the requested schema.`
+      : "";
+
+    try {
+      const generated = generatedPlanSchema.parse(
+        await input.client.generate(input.model, `${prompt}${retryInstruction}`)
+      );
+      return validateIssuePilotPlan({
+        version: 1,
+        project: generated.project,
+        repository: input.config.repository,
+        generatedAt: (input.now ?? new Date()).toISOString(),
+        tasks: generated.tasks
+      }, input.config);
+    } catch (error) {
+      lastError = error;
+      if (attempt === maxAttempts) break;
+      input.onRetry?.(attempt + 1, maxAttempts, errorMessage(error));
+      await wait(retryDelayMilliseconds * attempt);
+    }
+  }
+
+  throw new ReviewPilotError(
+    "ISSUE_PLAN_GENERATION_FAILED",
+    `Could not generate a valid IssuePilot plan after ${maxAttempts} attempts. Last error: ${errorMessage(lastError)}`,
+    { cause: lastError }
+  );
 }

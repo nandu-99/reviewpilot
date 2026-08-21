@@ -1,6 +1,6 @@
 {
   "name": "reviewpilot",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "A cautious, repository-aware pull request review agent.",
   "type": "module",
   "bin": {
