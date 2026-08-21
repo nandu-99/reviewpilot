@@ -1,0 +1,31 @@
+# Used as the OpenRouter model/fallback when environment variables do not
+# override it. Gemini configuration is supplied through .env.
+model: openrouter/free
+
+review:
+  focus:
+    - correctness
+    - security
+    - tests
+  minimumConfidence: 0.75
+  maximumFindings: 12
+  maximumPromptCharacters: 100000
+
+repository:
+  maximumFileCharacters: 20000
+  maximumRelatedFiles: 12
+  ignoredPaths:
+    - dist/**
+    - build/**
+    - coverage/**
+    - "*.min.js"
+    - "*.map"
+
+# Commands are never run unless --run-checks is provided. They are executed
+# directly, without a shell. ReviewPilot never installs dependencies.
+validation:
+  commands:
+    - [npm, run, typecheck, --if-present]
+    - [npm, run, lint, --if-present]
+    - [npm, test, --, --runInBand]
+  timeoutMilliseconds: 120000
