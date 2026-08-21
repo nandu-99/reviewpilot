@@ -29,7 +29,7 @@ const program = new Command();
 program
   .name("reviewpilot")
   .description("Repository-aware pull request reviews with OpenRouter")
-  .version("0.1.0");
+  .version("1.0.0");
 
 program
   .command("review")

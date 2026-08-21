@@ -97,6 +97,14 @@ Copy [`examples/reviewpilot.yml`](examples/reviewpilot.yml) into the target repo
 .github/workflows/reviewpilot.yml
 ```
 
+The workflow uses the stable major-version action reference:
+
+```yaml
+uses: nandu-99/reviewpilot@v1
+```
+
+The `v1` tag receives backward-compatible v1 updates. Pin `nandu-99/reviewpilot@v1.0.0` for an immutable release reference, or pin the full commit SHA for the strongest supply-chain protection.
+
 The workflow grants only:
 
 ```yaml
@@ -110,7 +118,7 @@ It cannot push code or merge pull requests. Automatic validation is intentionall
 
 For an existing PR, open the workflow in the target repository's **Actions** tab, choose **Run workflow**, and provide the full PR URL. Automatic runs use the event PR URL without manual input.
 
-During initial development, the example references `nandu-99/reviewpilot@main`. After creating a stable release, publish a `v1` tag and update consumers to `nandu-99/reviewpilot@v1` so workflow behavior is versioned.
+Release history and upgrade notes are recorded in [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Optional issue-aware review
 
@@ -195,7 +203,7 @@ ReviewPilot does not install dependencies. Validation therefore works when the r
 - Temporary checkouts are removed after success or failure.
 - Validation uses direct process execution with no shell.
 - Destructive and network download commands are blocked from validation configuration.
-- GitHub publishing is opt-in through `--post-comment`; autonomous code changes, approvals, change requests, merges, and pushes remain outside this MVP.
+- GitHub publishing is opt-in through `--post-comment`; autonomous code changes, approvals, change requests, merges, and pushes are not supported.
 
 ## Development
 
