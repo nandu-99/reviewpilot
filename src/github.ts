@@ -237,14 +237,18 @@ export class GitHubClient {
       throw new ReviewPilotError("MISSING_COMMENT_MARKER", "The ReviewPilot comment body must contain its duplicate-prevention marker.");
     }
 
-    const viewer = await this.request<GitHubUserResponse>(`${GITHUB_API}/user`);
+    // GITHUB_TOKEN is a GitHub App installation token. It can post comments as
+    // github-actions[bot], but it cannot access the user-only `/user` endpoint.
+    const commentAuthor = process.env.GITHUB_ACTIONS === "true"
+      ? "github-actions[bot]"
+      : (await this.request<GitHubUserResponse>(`${GITHUB_API}/user`)).login;
     let existing: GitHubIssueCommentResponse | undefined;
     for (let page = 1; page <= 30 && !existing; page += 1) {
       const comments = await this.request<GitHubIssueCommentResponse[]>(
         `${GITHUB_API}/repos/${encodeURIComponent(ref.owner)}/${encodeURIComponent(ref.repo)}/issues/${ref.number}/comments?per_page=100&page=${page}`
       );
       existing = comments.find((comment) =>
-        comment.user?.login.toLowerCase() === viewer.login.toLowerCase() && comment.body?.includes(marker)
+        comment.user?.login.toLowerCase() === commentAuthor.toLowerCase() && comment.body?.includes(marker)
       );
       if (comments.length < 100) break;
     }

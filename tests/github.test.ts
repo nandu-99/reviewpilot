@@ -133,4 +133,36 @@ describe("GitHubClient", () => {
       "<!-- marker -->"
     )).resolves.toEqual({ action: "updated", url: "https://github.com/acme/shop/pull/12#issuecomment-7" });
   });
+
+  it("updates the Actions bot comment without calling the user-only endpoint", async () => {
+    vi.stubEnv("GITHUB_ACTIONS", "true");
+    try {
+      const fetchMock = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+        const value = String(url);
+        expect(value).not.toMatch(/\/user$/);
+        if (value.includes("/comments?")) {
+          return new Response(JSON.stringify([
+            { id: 7, body: "Old <!-- marker -->", html_url: "old", user: { login: "github-actions[bot]" } }
+          ]));
+        }
+        expect(value).toMatch(/\/issues\/comments\/7$/);
+        expect(init?.method).toBe("PATCH");
+        return new Response(JSON.stringify({
+          id: 7,
+          body: "New",
+          html_url: "https://github.com/acme/shop/pull/12#issuecomment-7",
+          user: { login: "github-actions[bot]" }
+        }));
+      });
+      const client = new GitHubClient("actions-token", fetchMock as typeof fetch);
+
+      await expect(client.upsertPullRequestComment(
+        parsePullRequestUrl("https://github.com/acme/shop/pull/12"),
+        "New <!-- marker -->",
+        "<!-- marker -->"
+      )).resolves.toEqual({ action: "updated", url: "https://github.com/acme/shop/pull/12#issuecomment-7" });
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
 });
