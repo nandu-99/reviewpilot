@@ -82,6 +82,36 @@ reviewpilot review <url> --post-comment
 
 The comment contains a hidden ReviewPilot marker. On later runs, ReviewPilot updates the existing marked comment authored by the token owner instead of adding a duplicate. It never edits another user's comment and does not approve, request changes, merge, or push code.
 
+## Automatic GitHub Actions reviews
+
+ReviewPilot ships as a composite GitHub Action. It runs on GitHub-hosted runners when a same-repository pull request is opened, updated, reopened, or marked ready for review. No always-on server is required.
+
+In the repository you want ReviewPilot to monitor, add these Actions secrets under **Settings → Secrets and variables → Actions**:
+
+- `GEMINI_API_KEY` — required for the default Gemini provider.
+- `OPENROUTER_API_KEY` — optional fallback.
+
+Copy [`examples/reviewpilot.yml`](examples/reviewpilot.yml) into the target repository as:
+
+```text
+.github/workflows/reviewpilot.yml
+```
+
+The workflow grants only:
+
+```yaml
+permissions:
+  contents: read
+  issues: read
+  pull-requests: write
+```
+
+It cannot push code or merge pull requests. Automatic validation is intentionally disabled because PR code is untrusted. The workflow skips fork-origin PRs because repository secrets and write-enabled tokens are not safely available to ordinary `pull_request` workflows from forks.
+
+For an existing PR, open the workflow in the target repository's **Actions** tab, choose **Run workflow**, and provide the full PR URL. Automatic runs use the event PR URL without manual input.
+
+During initial development, the example references `nandu-99/reviewpilot@main`. After creating a stable release, publish a `v1` tag and update consumers to `nandu-99/reviewpilot@v1` so workflow behavior is versioned.
+
 ## Optional issue-aware review
 
 ReviewPilot can compare a PR with issue requirements, but an issue is not required. By default it detects up to five issue references on PR-description lines containing `Closes`, `Fixes`, or `Resolves`:

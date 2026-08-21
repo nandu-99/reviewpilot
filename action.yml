@@ -1,0 +1,79 @@
+name: ReviewPilot PR Review
+description: Review a GitHub pull request against its code and optional linked issues.
+author: nandu-99
+
+inputs:
+  pr-url:
+    description: Full GitHub pull request URL to review.
+    required: true
+  github-token:
+    description: GitHub token used to read the repository and update the ReviewPilot comment.
+    required: true
+  provider:
+    description: Primary AI provider, either gemini or openrouter.
+    required: false
+    default: gemini
+  model:
+    description: Optional model override for the primary provider.
+    required: false
+    default: ""
+  gemini-api-key:
+    description: Gemini API key, required when provider is gemini.
+    required: false
+    default: ""
+  openrouter-api-key:
+    description: Optional OpenRouter key for fallback, or primary use when provider is openrouter.
+    required: false
+    default: ""
+  openrouter-fallback-model:
+    description: OpenRouter model used when Gemini fails.
+    required: false
+    default: nvidia/nemotron-3-ultra-550b-a55b:free
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: "22"
+        cache: npm
+        cache-dependency-path: ${{ github.action_path }}/package-lock.json
+
+    - name: Install ReviewPilot
+      shell: bash
+      run: npm ci --ignore-scripts --prefix "$GITHUB_ACTION_PATH"
+
+    - name: Build ReviewPilot
+      shell: bash
+      run: npm run build --prefix "$GITHUB_ACTION_PATH"
+
+    - name: Review pull request
+      shell: bash
+      env:
+        REVIEWPILOT_PR_URL: ${{ inputs.pr-url }}
+        REVIEWPILOT_MODEL: ${{ inputs.model }}
+        AI_PROVIDER: ${{ inputs.provider }}
+        GEMINI_API_KEY: ${{ inputs.gemini-api-key }}
+        OPENROUTER_API_KEY: ${{ inputs.openrouter-api-key }}
+        OPENROUTER_FALLBACK_MODEL: ${{ inputs.openrouter-fallback-model }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: |
+        args=(review "$REVIEWPILOT_PR_URL" --post-comment --output "$RUNNER_TEMP/reviewpilot-reports")
+        if [[ -n "$REVIEWPILOT_MODEL" ]]; then
+          args+=(--model "$REVIEWPILOT_MODEL")
+        fi
+        node "$GITHUB_ACTION_PATH/dist/cli.js" "${args[@]}"
+
+    - name: Upload review reports
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: reviewpilot-report-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/reviewpilot-reports
+        if-no-files-found: ignore
+        retention-days: 14
+
+branding:
+  icon: check-circle
+  color: blue
