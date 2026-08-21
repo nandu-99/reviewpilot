@@ -34,11 +34,10 @@ runs:
   using: composite
   steps:
     - name: Set up Node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v6
       with:
         node-version: "22"
-        cache: npm
-        cache-dependency-path: ${{ github.action_path }}/package-lock.json
+        package-manager-cache: false
 
     - name: Install ReviewPilot
       shell: bash

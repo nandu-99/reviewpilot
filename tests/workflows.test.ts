@@ -17,6 +17,9 @@ describe("GitHub automation", () => {
     expect(action.inputs["pr-url"]?.required).toBe(true);
     expect(action.inputs["github-token"]?.required).toBe(true);
     expect(action.inputs.provider?.default).toBe("gemini");
+    expect(source).toContain("actions/setup-node@v6");
+    expect(source).toContain("package-manager-cache: false");
+    expect(source).not.toContain("cache-dependency-path");
     expect(source).toContain("--post-comment");
     expect(source).not.toContain("--run-checks");
   });
