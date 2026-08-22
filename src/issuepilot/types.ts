@@ -17,7 +17,7 @@ export interface PlannedIssue {
   title: string;
   role: string;
   assignee: string;
-  description: string;
+  summary: string;
   dependencies: string[];
   existingIssueNumber?: number | undefined;
   baselineCompleted?: boolean | undefined;
@@ -25,7 +25,7 @@ export interface PlannedIssue {
 }
 
 export interface IssuePilotPlan {
-  version: 1;
+  version: 2;
   project: string;
   repository: string;
   generatedAt: string;

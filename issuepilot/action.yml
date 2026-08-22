@@ -10,11 +10,11 @@ inputs:
     description: GitHub token used to inspect progress and create approved issues.
     required: true
   gemini-api-key:
-    description: Gemini API key used only in plan mode.
+    description: Gemini API key used for planning and just-in-time issue descriptions.
     required: false
     default: ""
   openrouter-api-key:
-    description: OpenRouter API key used only when selected in plan mode.
+    description: OpenRouter API key used when selected for planning or issue descriptions.
     required: false
     default: ""
   provider:
@@ -82,9 +82,16 @@ runs:
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
+        GEMINI_API_KEY: ${{ inputs.gemini-api-key }}
+        OPENROUTER_API_KEY: ${{ inputs.openrouter-api-key }}
+        AI_PROVIDER: ${{ inputs.provider }}
+        ISSUEPILOT_MODEL: ${{ inputs.model }}
         ISSUEPILOT_CONFIG: ${{ inputs.config }}
         ISSUEPILOT_PLAN: ${{ inputs.plan }}
-      run: node "$GITHUB_ACTION_PATH/../dist/cli.js" issuepilot sync --config "$ISSUEPILOT_CONFIG" --plan "$ISSUEPILOT_PLAN" --apply
+      run: |
+        args=(issuepilot sync --config "$ISSUEPILOT_CONFIG" --plan "$ISSUEPILOT_PLAN" --provider "$AI_PROVIDER" --apply)
+        if [[ -n "$ISSUEPILOT_MODEL" ]]; then args+=(--model "$ISSUEPILOT_MODEL"); fi
+        node "$GITHUB_ACTION_PATH/../dist/cli.js" "${args[@]}"
 
 branding:
   icon: calendar

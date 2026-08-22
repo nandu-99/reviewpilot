@@ -48,10 +48,12 @@ describe("GitHub automation", () => {
 
     expect(actionSource).toContain("issuepilot sync");
     expect(actionSource).toContain("--apply");
+    expect(actionSource).toContain("GEMINI_API_KEY: ${{ inputs.gemini-api-key }}");
     expect(planSource).toContain("workflow_dispatch");
     expect(planSource).toContain("gh pr create");
     expect(syncSource).toContain("types: [closed]");
     expect(syncSource).toContain("types: [closed, labeled]");
+    expect(syncSource).toContain("gemini-api-key: ${{ secrets.GEMINI_API_KEY }}");
     expect(syncSource).not.toContain("pull_request_target");
   });
 });

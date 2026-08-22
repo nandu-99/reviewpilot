@@ -95,21 +95,21 @@ export function evaluateTaskProgress(
   });
 }
 
-function issueBody(task: IssuePilotPlan["tasks"][number], progressById: Map<string, TaskProgress>): string {
-  const dependencyIssues = task.dependencies
-    .map((id) => progressById.get(id)?.issue?.number)
-    .filter((number): number is number => number !== undefined);
-  const dependencies = dependencyIssues.length > 0
-    ? `\n\n## Dependencies\n\n${dependencyIssues.map((number) => `- Depends on #${number}`).join("\n")}`
-    : "";
-  return `${task.description.trim()}${dependencies}\n\n${taskMarker(task.id)}`;
+function issueBody(description: string, taskId: string): string {
+  return `${description.trim()}\n\n${taskMarker(taskId)}`;
 }
+
+export type IssueDescriptionGenerator = (
+  task: IssuePilotPlan["tasks"][number],
+  progress: TaskProgress[]
+) => Promise<string>;
 
 export async function syncIssuePilot(
   config: IssuePilotConfig,
   plan: IssuePilotPlan,
   repository: IssuePilotRepository,
-  apply: boolean
+  apply: boolean,
+  generateDescription?: IssueDescriptionGenerator
 ): Promise<IssuePilotSyncResult> {
   const [issues, pulls] = await Promise.all([repository.listIssues(), repository.listPullRequests()]);
   const progress = evaluateTaskProgress(config, plan, issues, pulls);
@@ -156,9 +156,16 @@ export async function syncIssuePilot(
       continue;
     }
 
+    if (!generateDescription) {
+      throw new ReviewPilotError(
+        "MISSING_ISSUE_DESCRIPTION_GENERATOR",
+        "An AI description generator is required when creating IssuePilot issues."
+      );
+    }
+    const description = await generateDescription(item.task, progress);
     const result = await repository.createIssue({
       title: item.task.title,
-      body: issueBody(item.task, progressById),
+      body: issueBody(description, item.task.id),
       assignees: [item.task.assignee],
       labels: [config.managedLabel]
     });

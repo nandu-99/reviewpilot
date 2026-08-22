@@ -12,10 +12,16 @@ import type { ConfiguredReviewProvider } from "./providers.js";
 import { renderPullRequestComment, REVIEWPILOT_COMMENT_MARKER, writeReports } from "./report.js";
 import { executeReview } from "./reviewer.js";
 import { loadIssuePilotConfig } from "./issuepilot/config.js";
-import { GeminiIssuePlanClient, generateIssuePilotPlan, OpenRouterIssuePlanClient } from "./issuepilot/generator.js";
+import {
+  GeminiIssuePlanClient,
+  generateIssueDescription,
+  generateIssuePilotPlan,
+  OpenRouterIssuePlanClient
+} from "./issuepilot/generator.js";
 import { GitHubIssuePilotRepository } from "./issuepilot/github.js";
 import { loadIssuePilotPlan, writeIssuePilotPlan } from "./issuepilot/plan.js";
-import { syncIssuePilot } from "./issuepilot/sync.js";
+import { syncIssuePilot, type IssueDescriptionGenerator } from "./issuepilot/sync.js";
+import type { IssuePilotPlan, TaskProgress } from "./issuepilot/types.js";
 
 interface CliOptions {
   config?: string;
@@ -149,6 +155,20 @@ program
 
 const issuePilot = program.command("issuepilot").description("Plan and release dependency-aware GitHub issues");
 
+function issuePilotModel(providerOption?: string, modelOption?: string) {
+  const provider = (providerOption ?? process.env.AI_PROVIDER ?? (process.env.GEMINI_API_KEY ? "gemini" : "openrouter")).toLowerCase();
+  const client = provider === "gemini"
+    ? new GeminiIssuePlanClient(process.env.GEMINI_API_KEY ?? "")
+    : provider === "openrouter"
+      ? new OpenRouterIssuePlanClient(process.env.OPENROUTER_API_KEY ?? "")
+      : undefined;
+  if (!client) throw new ReviewPilotError("INVALID_AI_PROVIDER", "AI provider must be gemini or openrouter.");
+  const model = modelOption ?? (provider === "gemini"
+    ? process.env.GEMINI_MODEL ?? "gemini-2.5-flash"
+    : process.env.OPENROUTER_MODEL ?? "openrouter/free");
+  return { provider, client, model };
+}
+
 issuePilot
   .command("plan")
   .description("Generate an approval-ready .issuepilot/plan.yml from repository documents")
@@ -163,28 +183,17 @@ issuePilot
       const githubToken = process.env.GITHUB_TOKEN;
       if (!githubToken) throw new ReviewPilotError("MISSING_GITHUB_TOKEN", "GITHUB_TOKEN is required to inspect project progress.");
       const repository = new GitHubIssuePilotRepository(config.repository, githubToken);
-      process.stderr.write("→ Reading the project document and issue template...\n");
-      const [projectDocument, issueTemplate, issues, pullRequests] = await Promise.all([
+      process.stderr.write("→ Reading the project document and current GitHub progress...\n");
+      const [projectDocument, issues, pullRequests] = await Promise.all([
         readFile(path.resolve(cwd, config.projectDocument), "utf8"),
-        readFile(path.resolve(cwd, config.issueTemplate), "utf8"),
         repository.listIssues(),
         repository.listPullRequests()
       ]);
-      const provider = (options.provider ?? process.env.AI_PROVIDER ?? (process.env.GEMINI_API_KEY ? "gemini" : "openrouter")).toLowerCase();
-      const client = provider === "gemini"
-        ? new GeminiIssuePlanClient(process.env.GEMINI_API_KEY ?? "")
-        : provider === "openrouter"
-          ? new OpenRouterIssuePlanClient(process.env.OPENROUTER_API_KEY ?? "")
-          : undefined;
-      if (!client) throw new ReviewPilotError("INVALID_AI_PROVIDER", "AI provider must be gemini or openrouter.");
-      const model = options.model ?? (provider === "gemini"
-        ? process.env.GEMINI_MODEL ?? "gemini-2.5-flash"
-        : process.env.OPENROUTER_MODEL ?? "openrouter/free");
+      const { provider, client, model } = issuePilotModel(options.provider, options.model);
       process.stderr.write(`→ Generating a structured project plan with ${provider}/${model}...\n`);
       const plan = await generateIssuePilotPlan({
         config,
         projectDocument,
-        issueTemplate,
         issues,
         pullRequests,
         client,
@@ -207,8 +216,10 @@ issuePilot
   .description("Evaluate approved tasks and optionally create the next eligible issues")
   .option("-c, --config <path>", "IssuePilot configuration file", ".issuepilot/config.yml")
   .option("-p, --plan <path>", "approved plan path", ".issuepilot/plan.yml")
+  .option("--provider <provider>", "AI provider for just-in-time issue descriptions: gemini or openrouter")
+  .option("-m, --model <model>", "provider model ID for issue descriptions")
   .option("--apply", "create eligible GitHub issues", false)
-  .action(async (options: { config: string; plan: string; apply: boolean }) => {
+  .action(async (options: { config: string; plan: string; apply: boolean; provider?: string; model?: string }) => {
     try {
       const cwd = process.cwd();
       const githubToken = process.env.GITHUB_TOKEN;
@@ -216,7 +227,32 @@ issuePilot
       const config = await loadIssuePilotConfig(cwd, options.config);
       const plan = await loadIssuePilotPlan(cwd, config, options.plan);
       const repository = new GitHubIssuePilotRepository(config.repository, githubToken);
-      const result = await syncIssuePilot(config, plan, repository, options.apply);
+      let generateDescription: IssueDescriptionGenerator | undefined;
+      if (options.apply) {
+        const [projectDocument, issueTemplate] = await Promise.all([
+          readFile(path.resolve(cwd, config.projectDocument), "utf8"),
+          readFile(path.resolve(cwd, config.issueTemplate), "utf8")
+        ]);
+        const { provider, client, model } = issuePilotModel(options.provider, options.model);
+        generateDescription = async (task: IssuePilotPlan["tasks"][number], progress: TaskProgress[]) => {
+          process.stderr.write(`→ Generating the current issue description for ${task.id} with ${provider}/${model}...\n`);
+          return generateIssueDescription({
+            config,
+            projectDocument,
+            issueTemplate,
+            task,
+            progress,
+            client,
+            model,
+            onRetry: (attempt, maxAttempts, reason) => {
+              process.stderr.write(
+                `→ Issue description generation failed (${reason.slice(0, 300)}). Retrying attempt ${attempt}/${maxAttempts}...\n`
+              );
+            }
+          });
+        };
+      }
+      const result = await syncIssuePilot(config, plan, repository, options.apply, generateDescription);
       for (const item of result.progress) process.stdout.write(`${item.task.id}: ${item.state} — ${item.reason}\n`);
       for (const issue of result.created) process.stdout.write(`Created ${issue.taskId}: ${issue.url}\n`);
       for (const issue of result.wouldCreate) process.stdout.write(`Would create ${issue.taskId} for ${issue.assignee}: ${issue.title}\n`);

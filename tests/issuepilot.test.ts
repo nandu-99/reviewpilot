@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { generateIssuePilotPlan, type IssuePlanModelClient } from "../src/issuepilot/generator.js";
+import {
+  generateIssueDescription,
+  generateIssuePilotPlan,
+  type IssuePlanModelClient
+} from "../src/issuepilot/generator.js";
 import { validateIssuePilotPlan } from "../src/issuepilot/plan.js";
 import { evaluateTaskProgress, syncIssuePilot } from "../src/issuepilot/sync.js";
 import type {
@@ -27,12 +31,12 @@ const task = (id: string, assignee: string, role: string, dependencies: string[]
   title: `Implement ${id}`,
   role,
   assignee,
-  description: `## Objective\n\nImplement the complete ${id} behavior with focused tests.`,
+  summary: `Implement the complete ${id} behavior with focused automated tests.`,
   dependencies
 });
 
 const plan: IssuePilotPlan = {
-  version: 1,
+  version: 2,
   project: "Platform",
   repository: "acme/platform",
   generatedAt: "2026-08-21T00:00:00.000Z",
@@ -103,7 +107,6 @@ describe("IssuePilot plan generation", () => {
     const generated = await generateIssuePilotPlan({
       config,
       projectDocument: "Build an API. api_key=super-secret-value",
-      issueTemplate: "## Objective\nDescribe the task.",
       issues: [],
       pullRequests: [],
       client,
@@ -112,9 +115,18 @@ describe("IssuePilot plan generation", () => {
     });
 
     expect(generated.generatedAt).toBe("2026-08-21T00:00:00.000Z");
-    expect(generate).toHaveBeenCalledWith("test-model", expect.not.stringContaining("super-secret-value"));
-    expect(generate).toHaveBeenCalledWith("test-model", expect.stringContaining("Produce at most 30 tasks"));
-    expect(generate).toHaveBeenCalledWith("test-model", expect.stringContaining("below 2500 characters"));
+    expect(generate).toHaveBeenCalledWith(
+      "test-model",
+      expect.not.stringContaining("super-secret-value")
+    );
+    expect(generate).toHaveBeenCalledWith(
+      "test-model",
+      expect.stringContaining("Cover every unfinished priority")
+    );
+    expect(generate).toHaveBeenCalledWith(
+      "test-model",
+      expect.stringContaining("Full issue descriptions are generated later")
+    );
   });
 
   it("retries a failed model response and validates the next result", async () => {
@@ -130,7 +142,6 @@ describe("IssuePilot plan generation", () => {
     const generated = await generateIssuePilotPlan({
       config,
       projectDocument: "Build an API.",
-      issueTemplate: "## Objective\nDescribe the task.",
       issues: [],
       pullRequests: [],
       client: { generate },
@@ -151,7 +162,6 @@ describe("IssuePilot plan generation", () => {
     await expect(generateIssuePilotPlan({
       config,
       projectDocument: "Build an API.",
-      issueTemplate: "## Objective\nDescribe the task.",
       issues: [],
       pullRequests: [],
       client: { generate },
@@ -161,6 +171,59 @@ describe("IssuePilot plan generation", () => {
     })).rejects.toThrow(/after 3 attempts.*operation aborted/i);
 
     expect(generate).toHaveBeenCalledTimes(3);
+  });
+
+  it("generates a just-in-time issue description from the approved task and template", async () => {
+    const generate = vi.fn(async () => ({
+      description: "## Objective\n\nImplement the approved backend task with focused validation and automated tests.\n\n## Dependencies\n\n- Depends on #10\n\n## Out of Scope\n\nNo unrelated changes."
+    }));
+
+    const description = await generateIssueDescription({
+      config,
+      projectDocument: "Use Express and preserve existing routes.",
+      issueTemplate: "## Objective\n\n## Dependencies\n\n## Requirements",
+      task: plan.tasks[2]!,
+      progress: [
+        {
+          task: plan.tasks[0]!,
+          state: "completed",
+          issue: managedIssue(10, "backend-1", "closed"),
+          reason: "Linked PR #20 was merged."
+        }
+      ],
+      client: { generate },
+      model: "test-model",
+      retryDelayMilliseconds: 0
+    });
+
+    expect(description).toContain("Depends on #10");
+    expect(generate).toHaveBeenCalledWith(
+      "test-model",
+      expect.stringContaining('"issueNumber":10'),
+      expect.any(Object)
+    );
+  });
+
+  it("retries when a description adds headings omitted by the repository template", async () => {
+    const invalid = `${"## Objective\n\nImplement the approved task safely.\n\n"}## Acceptance Criteria\n\n- It works correctly.`;
+    const valid = "## Objective\n\nImplement the approved task safely with focused tests and clear error handling.\n\n## Deliverables\n\n- Focused implementation and tests.\n\n## Out of Scope\n\nNo unrelated work.";
+    const generate = vi.fn()
+      .mockResolvedValueOnce({ description: invalid })
+      .mockResolvedValueOnce({ description: valid });
+
+    const description = await generateIssueDescription({
+      config,
+      projectDocument: "Build the approved feature.",
+      issueTemplate: "## Objective\n\n## Deliverables\n\n## Out of Scope",
+      task: plan.tasks[0]!,
+      progress: [],
+      client: { generate },
+      model: "test-model",
+      retryDelayMilliseconds: 0
+    });
+
+    expect(description).toBe(valid);
+    expect(generate).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -186,11 +249,25 @@ describe("IssuePilot synchronization", () => {
     expect(evaluateTaskProgress(config, plan, [issue], [openPull])[0]).toMatchObject({ state: "in_progress" });
 
     const repository = new MemoryRepository([issue], [{ ...openPull, state: "closed", merged: true }]);
-    const result = await syncIssuePilot(config, plan, repository, true);
+    const generateDescription = vi.fn(async () =>
+      "## Objective\n\nImplement backend-2.\n\n## Dependencies\n\n- Depends on #10"
+    );
+    const result = await syncIssuePilot(config, plan, repository, true, generateDescription);
 
     expect(result.created.map((item) => item.taskId)).toContain("backend-2");
     expect(repository.created.find((item) => item.title === "Implement backend-2")?.body).toContain("Depends on #10");
+    expect(repository.created.find((item) => item.title === "Implement backend-2")?.body).toContain("issuepilot-task-id: backend-2");
+    expect(generateDescription).toHaveBeenCalledTimes(2);
     expect(repository.labels).toEqual(["issuepilot", "completed-manually"]);
+  });
+
+  it("does not request issue descriptions during a dry run", async () => {
+    const repository = new MemoryRepository();
+    const generateDescription = vi.fn();
+
+    await syncIssuePilot(config, plan, repository, false, generateDescription);
+
+    expect(generateDescription).not.toHaveBeenCalled();
   });
 
   it("accepts a closed issue only with the manual completion label", () => {

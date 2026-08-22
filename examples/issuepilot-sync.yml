@@ -23,7 +23,7 @@ jobs:
       github.event_name == 'issues' ||
       github.event.pull_request.merged == true
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - name: Check out the approved default branch
         uses: actions/checkout@v4
@@ -35,3 +35,4 @@ jobs:
         with:
           mode: sync
           github-token: ${{ github.token }}
+          gemini-api-key: ${{ secrets.GEMINI_API_KEY }}

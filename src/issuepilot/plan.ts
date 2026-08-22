@@ -10,7 +10,7 @@ export const plannedIssueSchema = z.object({
   title: z.string().trim().min(1).max(180),
   role: z.string().trim().min(1).max(60),
   assignee: z.string().trim().min(1).max(39),
-  description: z.string().trim().min(20).max(30000),
+  summary: z.string().trim().min(20).max(1000),
   dependencies: z.array(z.string().trim().min(1)).default([]),
   existingIssueNumber: z.number().int().positive().optional(),
   baselineCompleted: z.boolean().optional(),
@@ -18,7 +18,7 @@ export const plannedIssueSchema = z.object({
 });
 
 export const issuePilotPlanSchema = z.object({
-  version: z.literal(1),
+  version: z.literal(2),
   project: z.string().trim().min(1).max(200),
   repository: z.string().trim().regex(/^[^/\s]+\/[^/\s]+$/),
   generatedAt: z.string().datetime(),

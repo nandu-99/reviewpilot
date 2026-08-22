@@ -2,6 +2,16 @@
 
 All notable changes to ReviewPilot are documented in this file.
 
+## [1.2.0] - 2026-08-22
+
+### Changed
+
+- IssuePilot plans now store concise task summaries instead of every future issue body.
+- Complete roadmaps must cover all unfinished confirmed project priorities.
+- Full issue descriptions are generated only when a task becomes eligible, using the latest project document, issue template, and dependency status.
+- Synchronization accepts Gemini or OpenRouter credentials for just-in-time issue writing.
+- Plan schema version increased to 2; version 1 generated plans must be regenerated before approval.
+
 ## [1.1.0] - 2026-08-21
 
 ### Added

@@ -49,4 +49,4 @@ jobs:
             --base "${{ github.event.repository.default_branch }}" \
             --head "$ISSUEPILOT_BRANCH" \
             --title "Approve IssuePilot project plan" \
-            --body "Review the generated \`.issuepilot/plan.yml\`. Merging this PR approves the plan and allows IssuePilot to create the first eligible task for each developer."
+            --body "Review the generated lightweight \`.issuepilot/plan.yml\`, including task summaries, ordering, assignments, dependencies, and existing-work mappings. Merging this PR approves the roadmap and allows IssuePilot to generate and create the first eligible task for each developer."

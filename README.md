@@ -4,7 +4,7 @@ ReviewPilot is a cautious, repository-aware pull request review agent for GitHub
 
 ReviewPilot never modifies the reviewed repository or installs dependencies. Validation and GitHub comment publishing remain opt-in through `--run-checks` and `--post-comment`.
 
-ReviewPilot also includes **IssuePilot**, an approval-controlled project scheduler that turns repository documentation into a dependency-aware issue plan and releases one eligible task per developer as prior work is completed.
+ReviewPilot also includes **IssuePilot**, an approval-controlled project scheduler that turns repository documentation into a concise dependency-aware roadmap and releases one eligible task per developer as prior work is completed. Full issue descriptions are generated just in time from the latest project document and issue template.
 
 ## Requirements
 
@@ -150,9 +150,9 @@ An explicit `--issue` is still used with `--no-linked-issues`; that flag disable
 
 ## IssuePilot project scheduling
 
-IssuePilot reads a project document and issue template from each target repository, inspects existing issues and pull requests, and generates `.issuepilot/plan.yml`. The plan is proposed through a pull request; merging that PR is the project lead's approval.
+IssuePilot reads a project document from each target repository, inspects existing issues and pull requests, and generates a lightweight `.issuepilot/plan.yml`. The plan contains task IDs, titles, assignees, short summaries, dependencies, and existing-work mappings—not future issue bodies. The plan is proposed through a pull request; merging that PR is the project lead's approval.
 
-After approval, IssuePilot creates at most one eligible issue per configured developer. It creates the next task only when every declared dependency and every earlier task for that developer is complete.
+After approval, IssuePilot creates at most one eligible issue per configured developer. It creates the next task only when every declared dependency and every earlier task for that developer is complete. At that point, it reads the latest project document and issue template, generates one current beginner-friendly description, and publishes the issue with a stable hidden task marker.
 
 A task is complete when either:
 
@@ -186,16 +186,16 @@ Copy these workflows into the target repository:
 - [`examples/issuepilot-plan.yml`](examples/issuepilot-plan.yml) → `.github/workflows/issuepilot-plan.yml`
 - [`examples/issuepilot-sync.yml`](examples/issuepilot-sync.yml) → `.github/workflows/issuepilot-sync.yml`
 
-The planning workflow reuses `GEMINI_API_KEY` by default. OpenRouter is also supported through the action inputs. Synchronization does not call an AI model and needs no model API key.
+The planning and synchronization workflows reuse `GEMINI_API_KEY` by default. Planning uses it for the concise roadmap; synchronization uses it only when a newly eligible task needs its full issue description. OpenRouter is also supported through the action inputs.
 
 ### Approval and execution flow
 
 1. Run **Generate IssuePilot Plan** manually from the Actions tab.
 2. IssuePilot reads the configured documents and current GitHub progress.
 3. It opens a PR containing `.issuepilot/plan.yml`.
-4. Review and edit task ordering, descriptions, assignments, dependencies, and historical mappings.
+4. Review and edit task ordering, summaries, assignments, dependencies, and historical mappings.
 5. Merge the plan PR to approve it.
-6. The synchronization workflow creates the first eligible frontend and backend issues.
+6. The synchronization workflow generates current descriptions and creates the first eligible frontend and backend issues.
 7. Developers link their work with `Closes #<issue-number>`.
 8. Merging a linked PR automatically releases the next eligible issue.
 
