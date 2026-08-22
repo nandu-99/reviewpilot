@@ -33,6 +33,5 @@ jobs:
       - name: Create the next eligible issues
         uses: nandu-99/reviewpilot/issuepilot@v1
         with:
-          mode: sync
           github-token: ${{ github.token }}
           gemini-api-key: ${{ secrets.GEMINI_API_KEY }}

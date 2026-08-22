@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import YAML from "yaml";
 import { z } from "zod";
@@ -18,10 +18,9 @@ export const plannedIssueSchema = z.object({
 });
 
 export const issuePilotPlanSchema = z.object({
-  version: z.literal(2),
+  version: z.literal(3),
   project: z.string().trim().min(1).max(200),
   repository: z.string().trim().regex(/^[^/\s]+\/[^/\s]+$/),
-  generatedAt: z.string().datetime(),
   tasks: z.array(plannedIssueSchema).min(1).max(200)
 });
 
@@ -92,11 +91,4 @@ export async function loadIssuePilotPlan(cwd: string, config: IssuePilotConfig, 
     if (error instanceof ReviewPilotError) throw error;
     throw new ReviewPilotError("INVALID_ISSUEPILOT_PLAN", `Could not load IssuePilot plan at ${resolved}: ${error instanceof Error ? error.message : String(error)}`);
   }
-}
-
-export async function writeIssuePilotPlan(cwd: string, plan: IssuePilotPlan, planPath = ".issuepilot/plan.yml"): Promise<string> {
-  const resolved = path.resolve(cwd, planPath);
-  await mkdir(path.dirname(resolved), { recursive: true });
-  await writeFile(resolved, YAML.stringify(plan), "utf8");
-  return resolved;
 }

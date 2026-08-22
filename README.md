@@ -4,7 +4,7 @@ ReviewPilot is a cautious, repository-aware pull request review agent for GitHub
 
 ReviewPilot never modifies the reviewed repository or installs dependencies. Validation and GitHub comment publishing remain opt-in through `--run-checks` and `--post-comment`.
 
-ReviewPilot also includes **IssuePilot**, an approval-controlled project scheduler that turns repository documentation into a concise dependency-aware roadmap and releases one eligible task per developer as prior work is completed. Full issue descriptions are generated just in time from the latest project document and issue template.
+ReviewPilot also includes **IssuePilot**, an event-driven project scheduler that follows a manually maintained dependency-aware roadmap and releases one eligible task per developer as prior work is completed. Full issue descriptions are generated just in time from the latest project document and issue template.
 
 ## Requirements
 
@@ -150,7 +150,7 @@ An explicit `--issue` is still used with `--no-linked-issues`; that flag disable
 
 ## IssuePilot project scheduling
 
-IssuePilot reads a project document from each target repository, inspects existing issues and pull requests, and generates a lightweight `.issuepilot/plan.yml`. The plan contains task IDs, titles, assignees, short summaries, dependencies, and existing-work mappings—not future issue bodies. The plan is proposed through a pull request; merging that PR is the project lead's approval.
+IssuePilot treats the repository-owned `.issuepilot/plan.yml` as the human-approved source of truth. The manually maintained plan contains task IDs, titles, assignees, short summaries, dependencies, and existing-work mappings—not future issue bodies. IssuePilot validates this file but never generates or rewrites the roadmap.
 
 After approval, IssuePilot creates at most one eligible issue per configured developer. It creates the next task only when every declared dependency and every earlier task for that developer is complete. At that point, it reads the latest project document and issue template, generates one current beginner-friendly description, and publishes the issue with a stable hidden task marker.
 
@@ -181,23 +181,45 @@ team:
 
 The configured users must be assignable collaborators in the target repository.
 
-Copy these workflows into the target repository:
+Create `.issuepilot/plan.yml` manually and review changes through an ordinary pull request:
 
-- [`examples/issuepilot-plan.yml`](examples/issuepilot-plan.yml) → `.github/workflows/issuepilot-plan.yml`
-- [`examples/issuepilot-sync.yml`](examples/issuepilot-sync.yml) → `.github/workflows/issuepilot-sync.yml`
+```yaml
+version: 3
+project: Example Platform
+repository: acme/platform
+tasks:
+  - id: build-backend-api
+    title: Build the Backend API
+    role: backend
+    assignee: backend-developer
+    summary: Implement the approved API contract with validation, tenant isolation, and focused automated tests.
+    dependencies: []
 
-The planning and synchronization workflows reuse `GEMINI_API_KEY` by default. Planning uses it for the concise roadmap; synchronization uses it only when a newly eligible task needs its full issue description. OpenRouter is also supported through the action inputs.
+  - id: integrate-frontend-api
+    title: Integrate the Frontend API
+    role: frontend
+    assignee: frontend-developer
+    summary: Connect the existing frontend flow to the approved backend contract with loading, success, empty, and error states.
+    dependencies:
+      - build-backend-api
+```
+
+Task order is the execution order for each assignee. Use `existingIssueNumber` to map work that already has a GitHub issue. Use `baselineCompleted: true` with `completionEvidence` only for work proven complete before IssuePilot begins managing the roadmap.
+
+Copy [`examples/issuepilot-sync.yml`](examples/issuepilot-sync.yml) into the target repository as `.github/workflows/issuepilot-sync.yml`.
+
+The synchronization workflow uses `GEMINI_API_KEY` only when a newly eligible task needs its full issue description. OpenRouter is also supported through the action inputs.
 
 ### Approval and execution flow
 
-1. Run **Generate IssuePilot Plan** manually from the Actions tab.
-2. IssuePilot reads the configured documents and current GitHub progress.
-3. It opens a PR containing `.issuepilot/plan.yml`.
-4. Review and edit task ordering, summaries, assignments, dependencies, and historical mappings.
-5. Merge the plan PR to approve it.
-6. The synchronization workflow generates current descriptions and creates the first eligible frontend and backend issues.
-7. Developers link their work with `Closes #<issue-number>`.
-8. Merging a linked PR automatically releases the next eligible issue.
+1. Create or edit `.issuepilot/plan.yml` manually using schema version 3.
+2. Review task ordering, summaries, assignments, dependencies, and existing-issue mappings through a normal pull request.
+3. Merge the plan change to approve it; this merge triggers synchronization.
+4. The workflow validates the plan and current GitHub progress.
+5. It generates current descriptions and creates at most one eligible issue per developer.
+6. Developers link their work with `Closes #<issue-number>`.
+7. Merging a linked PR automatically releases the next eligible issue.
+8. A manually completed task unlocks later work only when its issue is closed with the configured completion label.
 
 To inspect scheduling without writing to GitHub:
 
@@ -211,7 +233,7 @@ To apply the approved plan manually:
 node dist/cli.js issuepilot sync --apply
 ```
 
-IssuePilot manages only tasks represented in the approved plan and issues containing its hidden task marker. It does not modify source code, merge PRs, or automatically approve its generated plan.
+IssuePilot manages only tasks represented in the manual plan and issues containing its hidden task marker. It does not modify source code, generate roadmaps, merge PRs, or approve plan changes.
 
 ## Configuration
 

@@ -1,9 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import {
-  generateIssueDescription,
-  generateIssuePilotPlan,
-  type IssuePlanModelClient
-} from "../src/issuepilot/generator.js";
+import { generateIssueDescription } from "../src/issuepilot/generator.js";
 import { validateIssuePilotPlan } from "../src/issuepilot/plan.js";
 import { evaluateTaskProgress, syncIssuePilot } from "../src/issuepilot/sync.js";
 import type {
@@ -36,10 +32,9 @@ const task = (id: string, assignee: string, role: string, dependencies: string[]
 });
 
 const plan: IssuePilotPlan = {
-  version: 2,
+  version: 3,
   project: "Platform",
   repository: "acme/platform",
-  generatedAt: "2026-08-21T00:00:00.000Z",
   tasks: [
     task("backend-1", "backend-dev", "backend"),
     task("frontend-1", "frontend-dev", "frontend"),
@@ -97,89 +92,13 @@ describe("IssuePilot plan validation", () => {
   });
 });
 
-describe("IssuePilot plan generation", () => {
-  it("redacts secrets and validates the generated team assignments", async () => {
-    const generate = vi.fn(async () => ({
-      project: "Platform",
-      tasks: [task("backend-1", "backend-dev", "backend")]
-    }));
-    const client = { generate } as IssuePlanModelClient;
-    const generated = await generateIssuePilotPlan({
-      config,
-      projectDocument: "Build an API. api_key=super-secret-value",
-      issues: [],
-      pullRequests: [],
-      client,
-      model: "test-model",
-      now: new Date("2026-08-21T00:00:00.000Z")
-    });
-
-    expect(generated.generatedAt).toBe("2026-08-21T00:00:00.000Z");
-    expect(generate).toHaveBeenCalledWith(
-      "test-model",
-      expect.not.stringContaining("super-secret-value")
-    );
-    expect(generate).toHaveBeenCalledWith(
-      "test-model",
-      expect.stringContaining("Cover every unfinished priority")
-    );
-    expect(generate).toHaveBeenCalledWith(
-      "test-model",
-      expect.stringContaining("Full issue descriptions are generated later")
-    );
-  });
-
-  it("retries a failed model response and validates the next result", async () => {
-    const generate = vi
-      .fn()
-      .mockRejectedValueOnce(new Error("invalid JSON"))
-      .mockResolvedValueOnce({
-        project: "Platform",
-        tasks: [task("backend-1", "backend-dev", "backend")]
-      });
-    const onRetry = vi.fn();
-
-    const generated = await generateIssuePilotPlan({
-      config,
-      projectDocument: "Build an API.",
-      issues: [],
-      pullRequests: [],
-      client: { generate },
-      model: "test-model",
-      retryDelayMilliseconds: 0,
-      onRetry
-    });
-
-    expect(generated.tasks).toHaveLength(1);
-    expect(generate).toHaveBeenCalledTimes(2);
-    expect(generate.mock.calls[1]?.[1]).toContain("previous response failed validation: invalid JSON");
-    expect(onRetry).toHaveBeenCalledWith(2, 3, "invalid JSON");
-  });
-
-  it("fails clearly after exhausting all plan attempts", async () => {
-    const generate = vi.fn().mockRejectedValue(new Error("operation aborted"));
-
-    await expect(generateIssuePilotPlan({
-      config,
-      projectDocument: "Build an API.",
-      issues: [],
-      pullRequests: [],
-      client: { generate },
-      model: "test-model",
-      maxAttempts: 3,
-      retryDelayMilliseconds: 0
-    })).rejects.toThrow(/after 3 attempts.*operation aborted/i);
-
-    expect(generate).toHaveBeenCalledTimes(3);
-  });
-
+describe("IssuePilot issue description generation", () => {
   it("generates a just-in-time issue description from the approved task and template", async () => {
     const generate = vi.fn(async () => ({
       description: "## Objective\n\nImplement the approved backend task with focused validation and automated tests.\n\n## Dependencies\n\n- Depends on #10\n\n## Out of Scope\n\nNo unrelated changes."
     }));
 
     const description = await generateIssueDescription({
-      config,
       projectDocument: "Use Express and preserve existing routes.",
       issueTemplate: "## Objective\n\n## Dependencies\n\n## Requirements",
       task: plan.tasks[2]!,
@@ -212,7 +131,6 @@ describe("IssuePilot plan generation", () => {
       .mockResolvedValueOnce({ description: valid });
 
     const description = await generateIssueDescription({
-      config,
       projectDocument: "Build the approved feature.",
       issueTemplate: "## Objective\n\n## Deliverables\n\n## Out of Scope",
       task: plan.tasks[0]!,
@@ -268,6 +186,31 @@ describe("IssuePilot synchronization", () => {
     await syncIssuePilot(config, plan, repository, false, generateDescription);
 
     expect(generateDescription).not.toHaveBeenCalled();
+  });
+
+  it("does not release an earlier planned task when a later task is already active for the assignee", async () => {
+    const laterActivePlan: IssuePilotPlan = {
+      version: 3,
+      project: "Platform",
+      repository: "acme/platform",
+      tasks: [
+        task("backend-planned", "backend-dev", "backend"),
+        {
+          ...task("backend-existing", "backend-dev", "backend"),
+          existingIssueNumber: 42
+        }
+      ]
+    };
+    const existing = managedIssue(42, "backend-existing");
+    const repository = new MemoryRepository([existing]);
+
+    const result = await syncIssuePilot(config, laterActivePlan, repository, false);
+
+    expect(result.wouldCreate).toHaveLength(0);
+    expect(result.progress[0]).toMatchObject({
+      state: "blocked",
+      reason: "Task backend-existing is already in progress for this assignee."
+    });
   });
 
   it("accepts a closed issue only with the manual completion label", () => {

@@ -41,16 +41,15 @@ describe("GitHub automation", () => {
     expect(source).not.toContain("pull_request_target");
   });
 
-  it("defines approval-controlled IssuePilot planning and event-driven synchronization", async () => {
+  it("defines manual-plan, event-driven IssuePilot synchronization", async () => {
     const actionSource = await readFile(path.join(root, "issuepilot", "action.yml"), "utf8");
-    const planSource = await readFile(path.join(root, "examples", "issuepilot-plan.yml"), "utf8");
     const syncSource = await readFile(path.join(root, "examples", "issuepilot-sync.yml"), "utf8");
 
     expect(actionSource).toContain("issuepilot sync");
     expect(actionSource).toContain("--apply");
     expect(actionSource).toContain("GEMINI_API_KEY: ${{ inputs.gemini-api-key }}");
-    expect(planSource).toContain("workflow_dispatch");
-    expect(planSource).toContain("gh pr create");
+    expect(actionSource).not.toContain("issuepilot plan");
+    expect(actionSource).not.toMatch(/^\s{2}mode:/m);
     expect(syncSource).toContain("types: [closed]");
     expect(syncSource).toContain("types: [closed, labeled]");
     expect(syncSource).toContain("gemini-api-key: ${{ secrets.GEMINI_API_KEY }}");

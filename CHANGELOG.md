@@ -2,6 +2,16 @@
 
 All notable changes to ReviewPilot are documented in this file.
 
+## [1.3.0] - 2026-08-22
+
+### Changed
+
+- Removed AI roadmap generation and the plan-generation workflow.
+- `.issuepilot/plan.yml` is now a manually maintained, pull-request-reviewed source of truth using schema version 3.
+- IssuePilot is focused on event-driven synchronization and just-in-time issue-description generation.
+- The scheduler blocks new work whenever any managed issue is already active for the same assignee, regardless of roadmap position.
+- Merged closing PRs and approved manually completed issues continue to unlock dependent tasks automatically.
+
 ## [1.2.0] - 2026-08-22
 
 ### Changed

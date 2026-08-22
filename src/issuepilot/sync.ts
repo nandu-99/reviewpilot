@@ -126,6 +126,17 @@ export async function syncIssuePilot(
   for (const item of progress) {
     if (item.state !== "planned") continue;
     const assignee = item.task.assignee.toLowerCase();
+    const activeForAssignee = progress.find(
+      (candidate) =>
+        candidate.task.id !== item.task.id &&
+        candidate.task.assignee.toLowerCase() === assignee &&
+        candidate.state === "in_progress"
+    );
+    if (activeForAssignee) {
+      item.state = "blocked";
+      item.reason = `Task ${activeForAssignee.task.id} is already in progress for this assignee.`;
+      continue;
+    }
     if (assignedThisRun.has(assignee)) {
       item.state = "blocked";
       item.reason = "Another task for this assignee is being released in this synchronization run.";

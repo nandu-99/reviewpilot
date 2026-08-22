@@ -25,10 +25,9 @@ export interface PlannedIssue {
 }
 
 export interface IssuePilotPlan {
-  version: 2;
+  version: 3;
   project: string;
   repository: string;
-  generatedAt: string;
   tasks: PlannedIssue[];
 }
 
