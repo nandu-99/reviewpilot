@@ -40,18 +40,21 @@ export function toGeminiSchema(value: unknown): unknown {
   const source = value as Record<string, unknown>;
   const result: Record<string, unknown> = {};
   for (const [key, item] of Object.entries(source)) {
-    if ([
-      "$schema",
-      "additionalProperties",
-      "minLength",
-      "maxLength",
-      "minimum",
-      "maximum",
-      "exclusiveMinimum",
-      "exclusiveMaximum",
-      "minItems",
-      "maxItems"
-    ].includes(key)) continue;
+    if (
+      [
+        "$schema",
+        "additionalProperties",
+        "minLength",
+        "maxLength",
+        "minimum",
+        "maximum",
+        "exclusiveMinimum",
+        "exclusiveMaximum",
+        "minItems",
+        "maxItems"
+      ].includes(key)
+    )
+      continue;
     result[key] = toGeminiSchema(item);
   }
   return result;
@@ -71,11 +74,17 @@ function isAbortError(error: unknown): boolean {
 
 function isRetryable(error: unknown): boolean {
   const status = errorStatus(error);
-  return isAbortError(error) || status === 408 || status === 429 || (status !== undefined && status >= 500) ||
-    (error instanceof ReviewPilotError && error.code === "INVALID_MODEL_RESPONSE");
+  return (
+    isAbortError(error) ||
+    status === 408 ||
+    status === 429 ||
+    (status !== undefined && status >= 500) ||
+    (error instanceof ReviewPilotError && error.code === "INVALID_MODEL_RESPONSE")
+  );
 }
 
-const wait = (milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+const wait = (milliseconds: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
 
 export class GeminiClient {
   private readonly client: GeminiSdkClient;
@@ -92,7 +101,10 @@ export class GeminiClient {
 
   async review(model: string, prompt: string): Promise<OpenRouterReview> {
     if (!this.apiKey) {
-      throw new ReviewPilotError("MISSING_GEMINI_KEY", "Set GEMINI_API_KEY before using the Gemini provider.");
+      throw new ReviewPilotError(
+        "MISSING_GEMINI_KEY",
+        "Set GEMINI_API_KEY before using the Gemini provider."
+      );
     }
 
     let lastError: unknown;
@@ -127,7 +139,9 @@ export class GeminiClient {
           const status = errorStatus(error);
           lastError = new ReviewPilotError(
             "GEMINI_ERROR",
-            status ? `Gemini returned ${status}.` : `Gemini request failed: ${error instanceof Error ? error.message : String(error)}`
+            status
+              ? `Gemini returned ${status}.`
+              : `Gemini request failed: ${error instanceof Error ? error.message : String(error)}`
           );
         }
 

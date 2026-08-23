@@ -21,7 +21,11 @@ function gitAuthenticationEnvironment(token?: string): NodeJS.ProcessEnv {
   };
 }
 
-async function requireSuccess(command: string[], cwd: string, env?: NodeJS.ProcessEnv): Promise<void> {
+async function requireSuccess(
+  command: string[],
+  cwd: string,
+  env?: NodeJS.ProcessEnv
+): Promise<void> {
   const result = await runCommand(command, {
     cwd,
     timeoutMilliseconds: 120_000,
@@ -35,7 +39,10 @@ async function requireSuccess(command: string[], cwd: string, env?: NodeJS.Proce
   }
 }
 
-export async function checkoutPullRequest(pr: PullRequestMetadata, token?: string): Promise<Checkout> {
+export async function checkoutPullRequest(
+  pr: PullRequestMetadata,
+  token?: string
+): Promise<Checkout> {
   const directory = await mkdtemp(path.join(os.tmpdir(), "reviewpilot-"));
   const env = gitAuthenticationEnvironment(token);
 

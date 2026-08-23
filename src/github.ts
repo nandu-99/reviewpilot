@@ -1,5 +1,11 @@
 import { ReviewPilotError } from "./errors.js";
-import type { IssueContext, IssueRef, PullRequestFile, PullRequestMetadata, PullRequestRef } from "./types.js";
+import type {
+  IssueContext,
+  IssueRef,
+  PullRequestFile,
+  PullRequestMetadata,
+  PullRequestRef
+} from "./types.js";
 
 const GITHUB_API = "https://api.github.com";
 
@@ -8,16 +14,25 @@ export function parsePullRequestUrl(input: string): PullRequestRef {
   try {
     url = new URL(input);
   } catch {
-    throw new ReviewPilotError("INVALID_PR_URL", "Expected a GitHub pull request URL such as https://github.com/owner/repo/pull/123.");
+    throw new ReviewPilotError(
+      "INVALID_PR_URL",
+      "Expected a GitHub pull request URL such as https://github.com/owner/repo/pull/123."
+    );
   }
 
   if (url.hostname.toLowerCase() !== "github.com") {
-    throw new ReviewPilotError("INVALID_PR_URL", "Version 1 supports github.com pull request URLs only.");
+    throw new ReviewPilotError(
+      "INVALID_PR_URL",
+      "Version 1 supports github.com pull request URLs only."
+    );
   }
 
   const parts = url.pathname.split("/").filter(Boolean);
   if (parts.length < 4 || parts[2] !== "pull" || !/^\d+$/.test(parts[3] ?? "")) {
-    throw new ReviewPilotError("INVALID_PR_URL", "Expected a GitHub pull request URL such as https://github.com/owner/repo/pull/123.");
+    throw new ReviewPilotError(
+      "INVALID_PR_URL",
+      "Expected a GitHub pull request URL such as https://github.com/owner/repo/pull/123."
+    );
   }
 
   const number = Number(parts[3]);
@@ -38,16 +53,23 @@ function issueRef(owner: string, repo: string, number: number): IssueRef {
   };
 }
 
-export function parseIssueReference(input: string, defaultRepository: Pick<PullRequestRef, "owner" | "repo">): IssueRef {
+export function parseIssueReference(
+  input: string,
+  defaultRepository: Pick<PullRequestRef, "owner" | "repo">
+): IssueRef {
   const value = input.trim();
-  const urlMatch = /^https:\/\/github\.com\/([^/]+)\/([^/]+)\/issues\/(\d+)(?:[/?#].*)?$/i.exec(value);
+  const urlMatch = /^https:\/\/github\.com\/([^/]+)\/([^/]+)\/issues\/(\d+)(?:[/?#].*)?$/i.exec(
+    value
+  );
   if (urlMatch) return issueRef(urlMatch[1]!, urlMatch[2]!, Number(urlMatch[3]));
 
   const qualifiedMatch = /^([^/\s]+)\/([^#\s]+)#(\d+)$/.exec(value);
-  if (qualifiedMatch) return issueRef(qualifiedMatch[1]!, qualifiedMatch[2]!, Number(qualifiedMatch[3]));
+  if (qualifiedMatch)
+    return issueRef(qualifiedMatch[1]!, qualifiedMatch[2]!, Number(qualifiedMatch[3]));
 
   const localMatch = /^#?(\d+)$/.exec(value);
-  if (localMatch) return issueRef(defaultRepository.owner, defaultRepository.repo, Number(localMatch[1]));
+  if (localMatch)
+    return issueRef(defaultRepository.owner, defaultRepository.repo, Number(localMatch[1]));
 
   throw new ReviewPilotError(
     "INVALID_ISSUE_REFERENCE",
@@ -55,11 +77,17 @@ export function parseIssueReference(input: string, defaultRepository: Pick<PullR
   );
 }
 
-export function extractClosingIssueReferences(body: string, defaultRepository: Pick<PullRequestRef, "owner" | "repo">): IssueRef[] {
+export function extractClosingIssueReferences(
+  body: string,
+  defaultRepository: Pick<PullRequestRef, "owner" | "repo">
+): IssueRef[] {
   const references: IssueRef[] = [];
   const seen = new Set<string>();
-  const lines = body.split(/\r?\n/).filter((line) => /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b/i.test(line));
-  const referencePattern = /https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/issues\/\d+|[^/\s,;]+\/[^#\s,;]+#\d+|#\d+/gi;
+  const lines = body
+    .split(/\r?\n/)
+    .filter((line) => /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b/i.test(line));
+  const referencePattern =
+    /https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/issues\/\d+|[^/\s,;]+\/[^#\s,;]+#\d+|#\d+/gi;
 
   for (const line of lines) {
     for (const match of line.matchAll(referencePattern)) {
@@ -127,7 +155,10 @@ export interface PullRequestCommentResult {
 }
 
 export class GitHubClient {
-  constructor(private readonly token?: string, private readonly fetchImpl: typeof fetch = fetch) {}
+  constructor(
+    private readonly token?: string,
+    private readonly fetchImpl: typeof fetch = fetch
+  ) {}
 
   private headers(accept = "application/vnd.github+json"): Record<string, string> {
     return {
@@ -148,16 +179,22 @@ export class GitHubClient {
     });
     if (!response.ok) {
       const detail = await response.text();
-      const hint = response.status === 404
-        ? " The repository may be private or the token may not have access."
-        : "";
-      throw new ReviewPilotError("GITHUB_API_ERROR", `GitHub returned ${response.status} for ${url}.${hint} ${detail.slice(0, 500)}`);
+      const hint =
+        response.status === 404
+          ? " The repository may be private or the token may not have access."
+          : "";
+      throw new ReviewPilotError(
+        "GITHUB_API_ERROR",
+        `GitHub returned ${response.status} for ${url}.${hint} ${detail.slice(0, 500)}`
+      );
     }
     return response.json() as Promise<T>;
   }
 
   async getPullRequest(ref: PullRequestRef): Promise<PullRequestMetadata> {
-    const data = await this.request<GitHubPullResponse>(`${GITHUB_API}/repos/${encodeURIComponent(ref.owner)}/${encodeURIComponent(ref.repo)}/pulls/${ref.number}`);
+    const data = await this.request<GitHubPullResponse>(
+      `${GITHUB_API}/repos/${encodeURIComponent(ref.owner)}/${encodeURIComponent(ref.repo)}/pulls/${ref.number}`
+    );
     return {
       ...ref,
       title: data.title,
@@ -177,7 +214,10 @@ export class GitHubClient {
       `${GITHUB_API}/repos/${encodeURIComponent(ref.owner)}/${encodeURIComponent(ref.repo)}/issues/${ref.number}`
     );
     if (data.pull_request) {
-      throw new ReviewPilotError("ISSUE_IS_PULL_REQUEST", `${ref.url} is a pull request, not an issue.`);
+      throw new ReviewPilotError(
+        "ISSUE_IS_PULL_REQUEST",
+        `${ref.url} is a pull request, not an issue.`
+      );
     }
     return {
       ...ref,
@@ -186,7 +226,9 @@ export class GitHubClient {
       state: data.state,
       author: data.user?.login ?? "unknown",
       assignees: (data.assignees ?? []).map((assignee) => assignee.login),
-      labels: (data.labels ?? []).map((label) => typeof label === "string" ? label : label.name ?? "").filter(Boolean),
+      labels: (data.labels ?? [])
+        .map((label) => (typeof label === "string" ? label : (label.name ?? "")))
+        .filter(Boolean),
       updatedAt: data.updated_at
     };
   }
@@ -197,15 +239,19 @@ export class GitHubClient {
       const data = await this.request<GitHubFileResponse[]>(
         `${GITHUB_API}/repos/${encodeURIComponent(ref.owner)}/${encodeURIComponent(ref.repo)}/pulls/${ref.number}/files?per_page=100&page=${page}`
       );
-      files.push(...data.map((file) => ({
-        filename: file.filename,
-        status: file.status,
-        additions: file.additions,
-        deletions: file.deletions,
-        changes: file.changes,
-        ...(file.patch !== undefined ? { patch: file.patch } : {}),
-        ...(file.previous_filename !== undefined ? { previousFilename: file.previous_filename } : {})
-      })));
+      files.push(
+        ...data.map((file) => ({
+          filename: file.filename,
+          status: file.status,
+          additions: file.additions,
+          deletions: file.deletions,
+          changes: file.changes,
+          ...(file.patch !== undefined ? { patch: file.patch } : {}),
+          ...(file.previous_filename !== undefined
+            ? { previousFilename: file.previous_filename }
+            : {})
+        }))
+      );
       if (data.length < 100) break;
     }
     return files;
@@ -217,7 +263,10 @@ export class GitHubClient {
       { headers: this.headers("application/vnd.github.v3.diff") }
     );
     if (!response.ok) {
-      throw new ReviewPilotError("GITHUB_API_ERROR", `GitHub returned ${response.status} while fetching the PR diff.`);
+      throw new ReviewPilotError(
+        "GITHUB_API_ERROR",
+        `GitHub returned ${response.status} while fetching the PR diff.`
+      );
     }
     return response.text();
   }
@@ -234,21 +283,27 @@ export class GitHubClient {
       );
     }
     if (!body.includes(marker)) {
-      throw new ReviewPilotError("MISSING_COMMENT_MARKER", "The ReviewPilot comment body must contain its duplicate-prevention marker.");
+      throw new ReviewPilotError(
+        "MISSING_COMMENT_MARKER",
+        "The ReviewPilot comment body must contain its duplicate-prevention marker."
+      );
     }
 
     // GITHUB_TOKEN is a GitHub App installation token. It can post comments as
     // github-actions[bot], but it cannot access the user-only `/user` endpoint.
-    const commentAuthor = process.env.GITHUB_ACTIONS === "true"
-      ? "github-actions[bot]"
-      : (await this.request<GitHubUserResponse>(`${GITHUB_API}/user`)).login;
+    const commentAuthor =
+      process.env.GITHUB_ACTIONS === "true"
+        ? "github-actions[bot]"
+        : (await this.request<GitHubUserResponse>(`${GITHUB_API}/user`)).login;
     let existing: GitHubIssueCommentResponse | undefined;
     for (let page = 1; page <= 30 && !existing; page += 1) {
       const comments = await this.request<GitHubIssueCommentResponse[]>(
         `${GITHUB_API}/repos/${encodeURIComponent(ref.owner)}/${encodeURIComponent(ref.repo)}/issues/${ref.number}/comments?per_page=100&page=${page}`
       );
-      existing = comments.find((comment) =>
-        comment.user?.login.toLowerCase() === commentAuthor.toLowerCase() && comment.body?.includes(marker)
+      existing = comments.find(
+        (comment) =>
+          comment.user?.login.toLowerCase() === commentAuthor.toLowerCase() &&
+          comment.body?.includes(marker)
       );
       if (comments.length < 100) break;
     }

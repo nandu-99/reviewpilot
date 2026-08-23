@@ -6,6 +6,18 @@ import YAML from "yaml";
 const root = process.cwd();
 
 describe("GitHub automation", () => {
+  it("derives the CLI version from package metadata", async () => {
+    const [cliSource, packageSource] = await Promise.all([
+      readFile(path.join(root, "src", "cli.ts"), "utf8"),
+      readFile(path.join(root, "package.json"), "utf8")
+    ]);
+    const packageMetadata = JSON.parse(packageSource) as { version: string };
+
+    expect(packageMetadata.version).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(cliSource).toContain(".version(packageMetadata.version)");
+    expect(cliSource).not.toMatch(/\.version\("\d+\.\d+\.\d+"\)/);
+  });
+
   it("defines a duplicate-safe PR review action without automatic validation", async () => {
     const source = await readFile(path.join(root, "action.yml"), "utf8");
     const action = YAML.parse(source) as {

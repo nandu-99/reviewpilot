@@ -49,7 +49,13 @@ describe("verifyFindings", () => {
   });
 
   it("recomputes risk after filtering", () => {
-    const result = verifyFindings({ ...baseReview, findings: [{ ...baseReview.findings[0]!, confidence: 0.2 }] }, diff, 0.75, 10, "test-model");
+    const result = verifyFindings(
+      { ...baseReview, findings: [{ ...baseReview.findings[0]!, confidence: 0.2 }] },
+      diff,
+      0.75,
+      10,
+      "test-model"
+    );
     expect(result.findings).toEqual([]);
     expect(result.riskLevel).toBe("none");
   });
@@ -62,8 +68,21 @@ describe("verifyFindings", () => {
       line: null,
       title: "Required audit log is missing"
     };
-    const withoutIssue = verifyFindings({ ...baseReview, findings: [requirementFinding] }, diff, 0.75, 10, "test-model");
-    const withIssue = verifyFindings({ ...baseReview, findings: [requirementFinding] }, diff, 0.75, 10, "test-model", true);
+    const withoutIssue = verifyFindings(
+      { ...baseReview, findings: [requirementFinding] },
+      diff,
+      0.75,
+      10,
+      "test-model"
+    );
+    const withIssue = verifyFindings(
+      { ...baseReview, findings: [requirementFinding] },
+      diff,
+      0.75,
+      10,
+      "test-model",
+      true
+    );
     expect(withoutIssue.findings).toEqual([]);
     expect(withIssue.findings).toHaveLength(1);
   });

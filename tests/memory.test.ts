@@ -8,7 +8,9 @@ import type { ReviewReport } from "../src/types.js";
 const directories: string[] = [];
 
 afterEach(async () => {
-  await Promise.all(directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
+  await Promise.all(
+    directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true }))
+  );
 });
 
 describe("ReviewMemory", () => {
@@ -23,12 +25,27 @@ describe("ReviewMemory", () => {
       validation: [],
       issues: [],
       pr: {
-        owner: "acme", repo: "shop", number: 1, url: "https://github.com/acme/shop/pull/1",
-        title: "Test", body: "", baseSha: "base", headSha: "abc", baseRef: "main", headRef: "test",
-        author: "dev", draft: false, changedFiles: 1
+        owner: "acme",
+        repo: "shop",
+        number: 1,
+        url: "https://github.com/acme/shop/pull/1",
+        title: "Test",
+        body: "",
+        baseSha: "base",
+        headSha: "abc",
+        baseRef: "main",
+        headRef: "test",
+        author: "dev",
+        draft: false,
+        changedFiles: 1
       },
       review: {
-        summary: "Done", riskLevel: "none", reviewedAreas: [], uncertainties: [], findings: [], model: "free"
+        summary: "Done",
+        riskLevel: "none",
+        reviewedAreas: [],
+        uncertainties: [],
+        findings: [],
+        model: "free"
       }
     } satisfies ReviewReport;
     await memory.put(report);

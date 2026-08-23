@@ -32,7 +32,11 @@ export class GitHubIssuePilotRepository implements IssuePilotRepository {
   private readonly owner: string;
   private readonly repo: string;
 
-  constructor(repository: string, private readonly token: string, private readonly fetchImpl: typeof fetch = fetch) {
+  constructor(
+    repository: string,
+    private readonly token: string,
+    private readonly fetchImpl: typeof fetch = fetch
+  ) {
     [this.owner, this.repo] = repository.split("/") as [string, string];
   }
 
@@ -49,7 +53,11 @@ export class GitHubIssuePilotRepository implements IssuePilotRepository {
     return `${GITHUB_API}/repos/${encodeURIComponent(this.owner)}/${encodeURIComponent(this.repo)}${path}`;
   }
 
-  private async request<T>(url: string, init: RequestInit = {}, allowed = new Set<number>()): Promise<T | undefined> {
+  private async request<T>(
+    url: string,
+    init: RequestInit = {},
+    allowed = new Set<number>()
+  ): Promise<T | undefined> {
     const response = await this.fetchImpl(url, {
       ...init,
       headers: { ...this.headers(), ...(init.body ? { "Content-Type": "application/json" } : {}) }
@@ -57,7 +65,10 @@ export class GitHubIssuePilotRepository implements IssuePilotRepository {
     if (allowed.has(response.status)) return undefined;
     if (!response.ok) {
       const detail = await response.text();
-      throw new ReviewPilotError("GITHUB_API_ERROR", `GitHub returned ${response.status} for ${url}. ${detail.slice(0, 500)}`);
+      throw new ReviewPilotError(
+        "GITHUB_API_ERROR",
+        `GitHub returned ${response.status} for ${url}. ${detail.slice(0, 500)}`
+      );
     }
     return response.json() as Promise<T>;
   }
@@ -65,16 +76,25 @@ export class GitHubIssuePilotRepository implements IssuePilotRepository {
   async listIssues(): Promise<ManagedIssue[]> {
     const result: ManagedIssue[] = [];
     for (let page = 1; page <= 30; page += 1) {
-      const data = await this.request<GitHubIssue[]>(this.repoUrl(`/issues?state=all&per_page=100&page=${page}`)) ?? [];
-      result.push(...data.filter((issue) => !issue.pull_request).map((issue) => ({
-        number: issue.number,
-        title: issue.title,
-        body: issue.body ?? "",
-        state: issue.state,
-        assignees: (issue.assignees ?? []).map((assignee) => assignee.login),
-        labels: (issue.labels ?? []).map((label) => typeof label === "string" ? label : label.name ?? "").filter(Boolean),
-        url: issue.html_url
-      })));
+      const data =
+        (await this.request<GitHubIssue[]>(
+          this.repoUrl(`/issues?state=all&per_page=100&page=${page}`)
+        )) ?? [];
+      result.push(
+        ...data
+          .filter((issue) => !issue.pull_request)
+          .map((issue) => ({
+            number: issue.number,
+            title: issue.title,
+            body: issue.body ?? "",
+            state: issue.state,
+            assignees: (issue.assignees ?? []).map((assignee) => assignee.login),
+            labels: (issue.labels ?? [])
+              .map((label) => (typeof label === "string" ? label : (label.name ?? "")))
+              .filter(Boolean),
+            url: issue.html_url
+          }))
+      );
       if (data.length < 100) break;
     }
     return result;
@@ -83,14 +103,19 @@ export class GitHubIssuePilotRepository implements IssuePilotRepository {
   async listPullRequests(): Promise<RepositoryPullRequest[]> {
     const result: RepositoryPullRequest[] = [];
     for (let page = 1; page <= 30; page += 1) {
-      const data = await this.request<GitHubPull[]>(this.repoUrl(`/pulls?state=all&per_page=100&page=${page}`)) ?? [];
-      result.push(...data.map((pull) => ({
-        number: pull.number,
-        body: pull.body ?? "",
-        state: pull.state,
-        merged: pull.merged_at !== null,
-        url: pull.html_url
-      })));
+      const data =
+        (await this.request<GitHubPull[]>(
+          this.repoUrl(`/pulls?state=all&per_page=100&page=${page}`)
+        )) ?? [];
+      result.push(
+        ...data.map((pull) => ({
+          number: pull.number,
+          body: pull.body ?? "",
+          state: pull.state,
+          merged: pull.merged_at !== null,
+          url: pull.html_url
+        }))
+      );
       if (data.length < 100) break;
     }
     return result;
@@ -111,7 +136,8 @@ export class GitHubIssuePilotRepository implements IssuePilotRepository {
       method: "POST",
       body: JSON.stringify(input)
     });
-    if (!issue) throw new ReviewPilotError("GITHUB_API_ERROR", "GitHub did not return the created issue.");
+    if (!issue)
+      throw new ReviewPilotError("GITHUB_API_ERROR", "GitHub did not return the created issue.");
     return { number: issue.number, url: issue.html_url };
   }
 }

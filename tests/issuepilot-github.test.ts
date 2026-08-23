@@ -6,37 +6,45 @@ describe("GitHubIssuePilotRepository", () => {
     const fetchMock = vi.fn(async (url: string | URL | Request) => {
       const value = String(url);
       if (value.includes("/issues?")) {
-        return new Response(JSON.stringify([
-          {
-            number: 1,
-            title: "Task",
-            body: "Body",
-            state: "open",
-            html_url: "https://github.com/acme/platform/issues/1",
-            assignees: [{ login: "dev" }],
-            labels: [{ name: "issuepilot" }]
-          },
+        return new Response(
+          JSON.stringify([
+            {
+              number: 1,
+              title: "Task",
+              body: "Body",
+              state: "open",
+              html_url: "https://github.com/acme/platform/issues/1",
+              assignees: [{ login: "dev" }],
+              labels: [{ name: "issuepilot" }]
+            },
+            {
+              number: 2,
+              title: "PR",
+              body: "",
+              state: "open",
+              html_url: "https://github.com/acme/platform/pull/2",
+              pull_request: {}
+            }
+          ])
+        );
+      }
+      return new Response(
+        JSON.stringify([
           {
             number: 2,
-            title: "PR",
-            body: "",
-            state: "open",
-            html_url: "https://github.com/acme/platform/pull/2",
-            pull_request: {}
+            body: "Closes #1",
+            state: "closed",
+            merged_at: "2026-08-21T00:00:00Z",
+            html_url: "https://github.com/acme/platform/pull/2"
           }
-        ]));
-      }
-      return new Response(JSON.stringify([
-        {
-          number: 2,
-          body: "Closes #1",
-          state: "closed",
-          merged_at: "2026-08-21T00:00:00Z",
-          html_url: "https://github.com/acme/platform/pull/2"
-        }
-      ]));
+        ])
+      );
     });
-    const repository = new GitHubIssuePilotRepository("acme/platform", "token", fetchMock as typeof fetch);
+    const repository = new GitHubIssuePilotRepository(
+      "acme/platform",
+      "token",
+      fetchMock as typeof fetch
+    );
 
     await expect(repository.listIssues()).resolves.toEqual([
       expect.objectContaining({ number: 1, assignees: ["dev"], labels: ["issuepilot"] })
@@ -56,23 +64,35 @@ describe("GitHubIssuePilotRepository", () => {
       }
       expect(value).toMatch(/\/issues$/);
       expect(init?.method).toBe("POST");
-      expect(JSON.parse(String(init?.body))).toMatchObject({ assignees: ["dev"], labels: ["issuepilot"] });
-      return new Response(JSON.stringify({
-        number: 7,
-        title: "Task",
-        body: "Body",
-        state: "open",
-        html_url: "https://github.com/acme/platform/issues/7"
-      }), { status: 201 });
+      expect(JSON.parse(String(init?.body))).toMatchObject({
+        assignees: ["dev"],
+        labels: ["issuepilot"]
+      });
+      return new Response(
+        JSON.stringify({
+          number: 7,
+          title: "Task",
+          body: "Body",
+          state: "open",
+          html_url: "https://github.com/acme/platform/issues/7"
+        }),
+        { status: 201 }
+      );
     });
-    const repository = new GitHubIssuePilotRepository("acme/platform", "token", fetchMock as typeof fetch);
+    const repository = new GitHubIssuePilotRepository(
+      "acme/platform",
+      "token",
+      fetchMock as typeof fetch
+    );
 
     await repository.ensureLabel("issuepilot", "123456", "Managed");
-    await expect(repository.createIssue({
-      title: "Task",
-      body: "Body",
-      assignees: ["dev"],
-      labels: ["issuepilot"]
-    })).resolves.toEqual({ number: 7, url: "https://github.com/acme/platform/issues/7" });
+    await expect(
+      repository.createIssue({
+        title: "Task",
+        body: "Body",
+        assignees: ["dev"],
+        labels: ["issuepilot"]
+      })
+    ).resolves.toEqual({ number: 7, url: "https://github.com/acme/platform/issues/7" });
   });
 });

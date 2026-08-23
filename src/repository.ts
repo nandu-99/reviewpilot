@@ -13,11 +13,32 @@ const INSTRUCTION_FILES = [
 ];
 
 const SOURCE_EXTENSIONS = new Set([
-  ".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts",
-  ".json", ".vue", ".svelte", ".css", ".scss", ".graphql", ".gql"
+  ".js",
+  ".jsx",
+  ".mjs",
+  ".cjs",
+  ".ts",
+  ".tsx",
+  ".mts",
+  ".cts",
+  ".json",
+  ".vue",
+  ".svelte",
+  ".css",
+  ".scss",
+  ".graphql",
+  ".gql"
 ]);
 
-const ALWAYS_IGNORED = new Set([".git", "node_modules", "dist", "build", "coverage", ".next", ".turbo"]);
+const ALWAYS_IGNORED = new Set([
+  ".git",
+  "node_modules",
+  "dist",
+  "build",
+  "coverage",
+  ".next",
+  ".turbo"
+]);
 
 function globToRegExp(glob: string): RegExp {
   const escaped = glob
@@ -31,11 +52,17 @@ function globToRegExp(glob: string): RegExp {
 
 function shouldIgnore(relativePath: string, patterns: string[]): boolean {
   const normalized = relativePath.replaceAll("\\", "/");
-  return normalized.split("/").some((part) => ALWAYS_IGNORED.has(part))
-    || patterns.some((pattern) => globToRegExp(pattern).test(normalized));
+  return (
+    normalized.split("/").some((part) => ALWAYS_IGNORED.has(part)) ||
+    patterns.some((pattern) => globToRegExp(pattern).test(normalized))
+  );
 }
 
-async function safeRead(root: string, relativePath: string, maximumCharacters: number): Promise<{ content: string; truncated: boolean; redactions: number } | undefined> {
+async function safeRead(
+  root: string,
+  relativePath: string,
+  maximumCharacters: number
+): Promise<{ content: string; truncated: boolean; redactions: number } | undefined> {
   if (isSensitivePath(relativePath)) return undefined;
   const absolutePath = path.resolve(root, relativePath);
   const relative = path.relative(root, absolutePath);
@@ -54,7 +81,11 @@ async function safeRead(root: string, relativePath: string, maximumCharacters: n
   }
 }
 
-async function walkSourceFiles(root: string, ignoredPatterns: string[], limit = 2500): Promise<string[]> {
+async function walkSourceFiles(
+  root: string,
+  ignoredPatterns: string[],
+  limit = 2500
+): Promise<string[]> {
   const output: string[] = [];
   const queue = [""];
   while (queue.length > 0 && output.length < limit) {
@@ -70,7 +101,8 @@ async function walkSourceFiles(root: string, ignoredPatterns: string[], limit = 
       const relativePath = path.join(relativeDirectory, entry.name).replaceAll("\\", "/");
       if (shouldIgnore(relativePath, ignoredPatterns)) continue;
       if (entry.isDirectory()) queue.push(relativePath);
-      else if (entry.isFile() && SOURCE_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) output.push(relativePath);
+      else if (entry.isFile() && SOURCE_EXTENSIONS.has(path.extname(entry.name).toLowerCase()))
+        output.push(relativePath);
       if (output.length >= limit) break;
     }
   }
@@ -79,7 +111,8 @@ async function walkSourceFiles(root: string, ignoredPatterns: string[], limit = 
 
 function extractSymbols(diffFiles: DiffFile[]): string[] {
   const symbols = new Set<string>();
-  const declaration = /^\+\s*(?:export\s+)?(?:async\s+)?(?:function|class|interface|type|const|let|var|enum)\s+([A-Za-z_$][\w$]*)/gm;
+  const declaration =
+    /^\+\s*(?:export\s+)?(?:async\s+)?(?:function|class|interface|type|const|let|var|enum)\s+([A-Za-z_$][\w$]*)/gm;
   for (const file of diffFiles) {
     for (const match of file.patch.matchAll(declaration)) {
       const symbol = match[1];
@@ -93,8 +126,13 @@ function extractSymbols(diffFiles: DiffFile[]): string[] {
 function looksLikeRelatedTest(candidate: string, changedFiles: Set<string>): boolean {
   const normalized = candidate.toLowerCase();
   if (!/(?:test|spec)\.[cm]?[jt]sx?$/.test(normalized)) return false;
-  const candidateBase = path.basename(candidate).replace(/\.(?:test|spec)\.[^.]+$/, "").toLowerCase();
-  return [...changedFiles].some((changed) => path.basename(changed, path.extname(changed)).toLowerCase() === candidateBase);
+  const candidateBase = path
+    .basename(candidate)
+    .replace(/\.(?:test|spec)\.[^.]+$/, "")
+    .toLowerCase();
+  return [...changedFiles].some(
+    (changed) => path.basename(changed, path.extname(changed)).toLowerCase() === candidateBase
+  );
 }
 
 export async function collectRepositoryContext(
@@ -118,10 +156,15 @@ export async function collectRepositoryContext(
 
   const changedFiles: RepositoryContext["changedFiles"] = [];
   for (const file of apiFiles) {
-    if (file.status === "removed" || shouldIgnore(file.filename, config.repository.ignoredPaths)) continue;
+    if (file.status === "removed" || shouldIgnore(file.filename, config.repository.ignoredPaths))
+      continue;
     const result = await safeRead(root, file.filename, maximumCharacters);
     if (result) {
-      changedFiles.push({ path: file.filename, content: result.content, truncated: result.truncated });
+      changedFiles.push({
+        path: file.filename,
+        content: result.content,
+        truncated: result.truncated
+      });
       redactionCount += result.redactions;
     }
   }
@@ -131,7 +174,8 @@ export async function collectRepositoryContext(
   const relatedFiles: RepositoryContext["relatedFiles"] = [];
 
   for (const candidate of allSourceFiles) {
-    if (changedPaths.has(candidate) || relatedFiles.length >= config.repository.maximumRelatedFiles) continue;
+    if (changedPaths.has(candidate) || relatedFiles.length >= config.repository.maximumRelatedFiles)
+      continue;
     const testMatch = looksLikeRelatedTest(candidate, changedPaths);
     const result = await safeRead(root, candidate, maximumCharacters);
     if (!result) continue;

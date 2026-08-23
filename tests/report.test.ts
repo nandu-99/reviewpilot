@@ -9,16 +9,39 @@ const report = {
   validation: [],
   issues: [],
   pr: {
-    owner: "acme", repo: "shop", number: 1, url: "https://github.com/acme/shop/pull/1",
-    title: "Test", body: "", baseSha: "base", headSha: "1234567890abcdef", baseRef: "main", headRef: "test",
-    author: "dev", draft: false, changedFiles: 1
+    owner: "acme",
+    repo: "shop",
+    number: 1,
+    url: "https://github.com/acme/shop/pull/1",
+    title: "Test",
+    body: "",
+    baseSha: "base",
+    headSha: "1234567890abcdef",
+    baseRef: "main",
+    headRef: "test",
+    author: "dev",
+    draft: false,
+    changedFiles: 1
   },
   review: {
-    summary: "One defect found.", riskLevel: "high", reviewedAreas: ["correctness"], uncertainties: [], model: "free",
-    findings: [{
-      severity: "high", confidence: 0.95, category: "correctness", file: "src/a.ts", line: 2,
-      title: "Broken call", evidence: "It throws.", impact: "Request fails.", suggestion: "Handle the error."
-    }]
+    summary: "One defect found.",
+    riskLevel: "high",
+    reviewedAreas: ["correctness"],
+    uncertainties: [],
+    model: "free",
+    findings: [
+      {
+        severity: "high",
+        confidence: 0.95,
+        category: "correctness",
+        file: "src/a.ts",
+        line: 2,
+        title: "Broken call",
+        evidence: "It throws.",
+        impact: "Request fails.",
+        suggestion: "Handle the error."
+      }
+    ]
   }
 } satisfies ReviewReport;
 

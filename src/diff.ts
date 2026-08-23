@@ -26,7 +26,13 @@ export function parseUnifiedDiff(diff: string): DiffFile[] {
       const match = /^diff --git (.+) (.+)$/.exec(line);
       const previousPath = match ? normalizeDiffPath(match[1]!) : "unknown";
       const path = match ? normalizeDiffPath(match[2]!) : previousPath;
-      current = { path, previousPath, status: "modified", patch: "", addedLines: new Set<number>() };
+      current = {
+        path,
+        previousPath,
+        status: "modified",
+        patch: "",
+        addedLines: new Set<number>()
+      };
       patchLines = [line];
       inHunk = false;
       continue;

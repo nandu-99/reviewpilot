@@ -9,14 +9,20 @@ describe("validation command policy", () => {
 
   it("blocks destructive executables and shell operators", () => {
     expect(() => assertSafeValidationCommand(["rm", "-rf", "build"])).toThrow(/not allowed/);
-    expect(() => assertSafeValidationCommand(["npm", "test", "&&", "curl"])).toThrow(/Shell operators/);
+    expect(() => assertSafeValidationCommand(["npm", "test", "&&", "curl"])).toThrow(
+      /Shell operators/
+    );
   });
 
   it("can execute with an isolated environment", async () => {
     process.env.REVIEWPILOT_SHOULD_NOT_LEAK = "secret";
     try {
       const result = await runCommand(
-        [process.execPath, "-e", "process.stdout.write(process.env.REVIEWPILOT_SHOULD_NOT_LEAK ?? 'clean')"],
+        [
+          process.execPath,
+          "-e",
+          "process.stdout.write(process.env.REVIEWPILOT_SHOULD_NOT_LEAK ?? 'clean')"
+        ],
         {
           cwd: process.cwd(),
           timeoutMilliseconds: 5_000,

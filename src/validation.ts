@@ -3,7 +3,18 @@ import { runCommand } from "./process.js";
 import type { ValidationResult } from "./types.js";
 
 const BLOCKED_EXECUTABLES = new Set([
-  "rm", "rmdir", "sudo", "doas", "shutdown", "reboot", "mkfs", "dd", "curl", "wget", "ssh", "scp"
+  "rm",
+  "rmdir",
+  "sudo",
+  "doas",
+  "shutdown",
+  "reboot",
+  "mkfs",
+  "dd",
+  "curl",
+  "wget",
+  "ssh",
+  "scp"
 ]);
 
 export function assertSafeValidationCommand(command: string[]): void {
@@ -16,7 +27,10 @@ export function assertSafeValidationCommand(command: string[]): void {
   }
 }
 
-export async function runValidation(root: string, config: ReviewPilotConfig): Promise<ValidationResult[]> {
+export async function runValidation(
+  root: string,
+  config: ReviewPilotConfig
+): Promise<ValidationResult[]> {
   const results: ValidationResult[] = [];
   for (const command of config.validation.commands) {
     assertSafeValidationCommand(command);

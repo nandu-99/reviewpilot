@@ -3,7 +3,9 @@ import { isSensitivePath, redactSecrets } from "../src/security.js";
 
 describe("secret handling", () => {
   it("redacts provider tokens and common assignments", () => {
-    const result = redactSecrets("OPENROUTER=sk-or-v1-abcdefghijklmnopqrstuvwxyz\npassword=supersecretvalue");
+    const result = redactSecrets(
+      "OPENROUTER=sk-or-v1-abcdefghijklmnopqrstuvwxyz\npassword=supersecretvalue"
+    );
     expect(result.value).not.toContain("abcdefghijklmnopqrstuvwxyz");
     expect(result.value).not.toContain("supersecretvalue");
     expect(result.count).toBe(2);

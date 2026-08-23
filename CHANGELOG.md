@@ -2,6 +2,25 @@
 
 All notable changes to ReviewPilot are documented in this file.
 
+## [1.3.1] - 2026-08-23
+
+### Added
+
+- Portfolio-focused architecture, security, contributing, and troubleshooting documentation.
+- Mermaid diagrams for the PR-review and dependency-aware scheduling flows.
+- Prettier formatting enforcement and Vitest coverage reporting with minimum thresholds.
+- Dependabot configuration, CodeQL analysis, and a pull-request template.
+
+### Changed
+
+- Restructured the README around product value, quick setup, safety boundaries, and current limitations.
+- Expanded npm package metadata for repository discovery.
+- The CLI now derives its version from `package.json` and describes both supported AI providers and agents accurately.
+
+### Fixed
+
+- GitHub usernames containing digits, such as `nandu-99`, now pass IssuePilot team validation while invalid consecutive hyphens remain rejected.
+
 ## [1.3.0] - 2026-08-22
 
 ### Changed

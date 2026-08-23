@@ -15,7 +15,8 @@ export class ReviewMemory {
   private async load(): Promise<MemoryFile> {
     try {
       const parsed = JSON.parse(await readFile(this.filePath, "utf8")) as Partial<MemoryFile>;
-      if (parsed.version !== 1 || !parsed.reviews || typeof parsed.reviews !== "object") return { ...EMPTY_MEMORY, reviews: {} };
+      if (parsed.version !== 1 || !parsed.reviews || typeof parsed.reviews !== "object")
+        return { ...EMPTY_MEMORY, reviews: {} };
       return { version: 1, reviews: parsed.reviews };
     } catch {
       return { ...EMPTY_MEMORY, reviews: {} };

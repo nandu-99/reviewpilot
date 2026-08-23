@@ -1,113 +1,100 @@
 # ReviewPilot
 
-ReviewPilot is a cautious, repository-aware pull request review agent for GitHub. It fetches a PR, checks out the exact head commit, inspects changed and related files, optionally runs explicitly allowed validation commands, asks Gemini or OpenRouter for a structured review, verifies every finding against the actual diff, and writes local Markdown and JSON reports.
+[![CI](https://github.com/nandu-99/reviewpilot/actions/workflows/ci.yml/badge.svg)](https://github.com/nandu-99/reviewpilot/actions/workflows/ci.yml)
+[![GitHub release](https://img.shields.io/github/v/release/nandu-99/reviewpilot)](https://github.com/nandu-99/reviewpilot/releases)
+[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-ReviewPilot never modifies the reviewed repository or installs dependencies. Validation and GitHub comment publishing remain opt-in through `--run-checks` and `--post-comment`.
+ReviewPilot is an AI-powered GitHub engineering workflow for repository-aware pull-request reviews and dependency-aware issue scheduling.
 
-ReviewPilot also includes **IssuePilot**, an event-driven project scheduler that follows a manually maintained dependency-aware roadmap and releases one eligible task per developer as prior work is completed. Full issue descriptions are generated just in time from the latest project document and issue template.
+- **ReviewPilot** checks a PR at its exact commit, compares it with optional linked issues, rejects unverifiable findings, and maintains one concise review comment.
+- **IssuePilot** follows a human-approved roadmap and creates the next eligible issue only after dependencies and the assignee's previous work are complete.
+
+Both agents run in GitHub Actions. They do not require an always-on server and never push application code or merge pull requests.
+
+## Why it is different
+
+General-purpose assistants often review an isolated snippet or produce an unverified list of suggestions. ReviewPilot inspects the real diff, changed files, related code, repository instructions, and optional requirements. A code finding is published only when it points to an actual added line; missing requirements are reported separately.
+
+IssuePilot complements review with controlled delivery. Its roadmap is maintained manually and approved through an ordinary pull request, while AI is used only to write the next task's detailed description from current project documentation.
+
+## System at a glance
+
+```mermaid
+flowchart LR
+    GH[GitHub repository]
+    PR[Pull request event]
+    DONE[Merged PR or completed issue]
+    REVIEW[ReviewPilot]
+    SCHEDULE[IssuePilot]
+    CONTEXT[Diff, linked issues, and repository context]
+    PLAN[Approved plan and GitHub state]
+    AI[Gemini or OpenRouter]
+    COMMENT[Verified PR comment and reports]
+    ISSUE[Next dependency-ready issue]
+
+    GH --> PR --> REVIEW
+    REVIEW --> CONTEXT --> AI --> REVIEW --> COMMENT
+    GH --> DONE --> SCHEDULE
+    SCHEDULE --> PLAN --> SCHEDULE
+    SCHEDULE --> AI --> ISSUE
+```
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for component boundaries, state, and event flows.
+
+## Key capabilities
+
+### Pull-request review
+
+- Checks out the exact PR head commit in a temporary workspace.
+- Reads the full diff, changed files, relevant tests, related symbols, manifests, and repository instructions.
+- Optionally compares implementation with issues linked by `Closes`, `Fixes`, or `Resolves`.
+- Supports Gemini as the primary provider and OpenRouter as a provider or fallback.
+- Uses structured model output and confidence thresholds.
+- Rejects wrong-file, wrong-line, duplicate, and low-confidence findings.
+- Redacts common secrets before model analysis or persistence.
+- Produces Markdown and JSON reports.
+- Creates or updates one marked PR comment instead of posting duplicates.
+- Runs configured validation commands only with explicit local authorization.
+
+### Dependency-aware issue scheduling
+
+- Reads a manually maintained `.issuepilot/plan.yml` roadmap.
+- Validates task IDs, assignments, dependencies, existing-issue mappings, and dependency cycles.
+- Uses GitHub issues and merged closing PRs as durable progress state.
+- Creates at most one eligible issue per developer.
+- Waits when an assignee already has managed work in progress.
+- Blocks tasks whose dependencies are incomplete or cancelled.
+- Generates the full issue description just in time from the latest project document and template.
+- Prevents duplicate issues with stable hidden task markers.
+- Supports approved manual completion through a dedicated label.
 
 ## Requirements
 
 - Node.js 22 or newer
 - Git
 - A Gemini API key, an [OpenRouter API key](https://openrouter.ai/keys), or both
-- A GitHub fine-grained personal access token for private repositories
+- A GitHub token when accessing private repositories or writing comments/issues
 
-Public repositories can be reviewed without a GitHub token, although authenticated requests have better rate limits.
+Gemini free-tier submissions may be used by Google to improve its products. Use a provider and account appropriate for the sensitivity of the repository being processed.
 
-## Install
+## Five-minute PR review setup
 
-```bash
-npm install
-npm run build
-```
+In the target repository, add `GEMINI_API_KEY` under **Settings → Secrets and variables → Actions**. `OPENROUTER_API_KEY` is optional and can be used as a fallback.
 
-Create a local environment file:
-
-```bash
-cp .env.example .env
-```
-
-Gemini-primary configuration with an optional OpenRouter fallback:
-
-```env
-AI_PROVIDER=gemini
-GEMINI_API_KEY=your-gemini-key
-GEMINI_MODEL=gemini-2.5-flash
-
-OPENROUTER_API_KEY=sk-or-v1-your-key
-OPENROUTER_FALLBACK_MODEL=nvidia/nemotron-3-ultra-550b-a55b:free
-```
-
-When Gemini is primary, ReviewPilot retries transient Gemini failures and then uses the configured OpenRouter fallback. Set `AI_PROVIDER=openrouter` to use OpenRouter alone. `--provider` and `--model` can override the primary provider and model for one run.
-
-Gemini free-tier submissions may be used by Google to improve its products. Use an appropriate paid provider or local model before reviewing confidential source code.
-
-For private repositories, also set:
-
-```env
-GITHUB_TOKEN=github_pat_your-token
-```
-
-For local-only reviews, the recommended fine-grained GitHub permissions are `Contents: Read`, `Pull requests: Read`, and `Issues: Read`, restricted to selected repositories. `Issues: Read` is only needed for private linked-issue context. To use `--post-comment`, change `Pull requests` to `Read and write`. Tokens and sensitive files are never sent to the model or written into review memory.
-
-## Run a review
-
-During development:
-
-```bash
-npm run dev -- review https://github.com/OWNER/REPOSITORY/pull/123
-```
-
-After building:
-
-```bash
-node dist/cli.js review https://github.com/OWNER/REPOSITORY/pull/123
-```
-
-Reports are written to `.reviewpilot/reviews/`. A review is cached by repository, PR number, exact head SHA, model, focus, thresholds, and validation settings; use `--force` to regenerate it.
-
-Useful options:
-
-```bash
-reviewpilot review <url> --focus correctness,security
-reviewpilot review <url> --provider gemini --model gemini-2.5-flash
-reviewpilot review <url> --provider openrouter --model openrouter/free
-reviewpilot review <url> --output ./review-results
-reviewpilot review <url> --force
-reviewpilot review <url> --post-comment
-```
-
-### Optional GitHub comment
-
-`--post-comment` publishes one compact summary comment in the pull request Conversation tab. Each finding has three short fields: what is wrong, a concrete example of what can happen, and the smallest fix. Findings with verified diff locations include `file:line`; entirely missing linked-issue requirements are labeled as general requirement findings. Publishing is opt-in and requires `GITHUB_TOKEN` with `Pull requests: Read and write`.
-
-The comment contains a hidden ReviewPilot marker. On later runs, ReviewPilot updates the existing marked comment authored by the token owner instead of adding a duplicate. It never edits another user's comment and does not approve, request changes, merge, or push code.
-
-## Automatic GitHub Actions reviews
-
-ReviewPilot ships as a composite GitHub Action. It runs on GitHub-hosted runners when a same-repository pull request is opened, updated, reopened, or marked ready for review. No always-on server is required.
-
-In the repository you want ReviewPilot to monitor, add these Actions secrets under **Settings → Secrets and variables → Actions**:
-
-- `GEMINI_API_KEY` — required for the default Gemini provider.
-- `OPENROUTER_API_KEY` — optional fallback.
-
-Copy [`examples/reviewpilot.yml`](examples/reviewpilot.yml) into the target repository as:
+Copy [`examples/reviewpilot.yml`](examples/reviewpilot.yml) to:
 
 ```text
 .github/workflows/reviewpilot.yml
 ```
 
-The workflow uses the stable major-version action reference:
+The workflow uses:
 
 ```yaml
 uses: nandu-99/reviewpilot@v1
 ```
 
-The `v1` tag receives backward-compatible v1 updates. Pin `nandu-99/reviewpilot@v1.0.0` for an immutable release reference, or pin the full commit SHA for the strongest supply-chain protection.
-
-The workflow grants only:
+Opening or updating a same-repository pull request now triggers a review. The example workflow intentionally skips fork-origin PRs and grants only:
 
 ```yaml
 permissions:
@@ -116,15 +103,59 @@ permissions:
   pull-requests: write
 ```
 
-It cannot push code or merge pull requests. Automatic validation is intentionally disabled because PR code is untrusted. The workflow skips fork-origin PRs because repository secrets and write-enabled tokens are not safely available to ordinary `pull_request` workflows from forks.
+Use an immutable release such as `nandu-99/reviewpilot@v1.3.0`, or a full commit SHA, when your supply-chain policy does not allow a moving major tag.
 
-For an existing PR, open the workflow in the target repository's **Actions** tab, choose **Run workflow**, and provide the full PR URL. Automatic runs use the event PR URL without manual input.
+## Local review
 
-Release history and upgrade notes are recorded in [`CHANGELOG.md`](CHANGELOG.md).
+```bash
+npm install
+cp .env.example .env
+npm run build
+```
 
-## Optional issue-aware review
+Configure at least one provider in `.env`:
 
-ReviewPilot can compare a PR with issue requirements, but an issue is not required. By default it detects up to five issue references on PR-description lines containing `Closes`, `Fixes`, or `Resolves`:
+```env
+AI_PROVIDER=gemini
+GEMINI_API_KEY=replace-me
+GEMINI_MODEL=gemini-2.5-flash
+
+# Optional fallback
+OPENROUTER_API_KEY=sk-or-v1-replace-me
+OPENROUTER_FALLBACK_MODEL=openrouter/free
+```
+
+During development:
+
+```bash
+npm run dev -- review https://github.com/OWNER/REPOSITORY/pull/123
+```
+
+From the compiled CLI:
+
+```bash
+node dist/cli.js review https://github.com/OWNER/REPOSITORY/pull/123
+```
+
+Useful options:
+
+```bash
+npm run dev -- review <PR_URL> --post-comment
+npm run dev -- review <PR_URL> --issue 42
+npm run dev -- review <PR_URL> --no-linked-issues
+npm run dev -- review <PR_URL> --focus correctness,security
+npm run dev -- review <PR_URL> --provider openrouter --model openrouter/free
+npm run dev -- review <PR_URL> --run-checks
+npm run dev -- review <PR_URL> --force
+```
+
+Reports are written to `.reviewpilot/reviews/`. Reviews are cached by repository, PR number, exact head SHA, provider configuration, focus, thresholds, linked-issue content, and validation settings.
+
+Public repositories can be read without a personal token during local reviews, subject to lower API rate limits. Private repositories need a fine-grained token restricted to the selected repositories. Publishing a PR comment requires `Pull requests: Read and write`.
+
+## Requirement-aware reviews
+
+Issue context is optional. ReviewPilot detects up to five closing references in the PR description:
 
 ```markdown
 Closes #42
@@ -132,56 +163,42 @@ Fixes owner/other-repository#9
 Resolves https://github.com/owner/repository/issues/15
 ```
 
-You can explicitly supply an issue even when the PR description does not link it:
+An issue can also be supplied explicitly:
 
 ```bash
-reviewpilot review <PR_URL> --issue 42
-reviewpilot review <PR_URL> --issue owner/repository#42
-reviewpilot review <PR_URL> --issue https://github.com/owner/repository/issues/42
+npm run dev -- review <PR_URL> --issue owner/repository#42
 ```
 
-To perform a PR-only review and ignore automatically detected links:
+Use `--no-linked-issues` for a PR-only review. An explicit `--issue` remains active with that flag.
 
-```bash
-reviewpilot review <PR_URL> --no-linked-issues
+## IssuePilot setup
+
+The target repository owns IssuePilot's source of truth:
+
+```text
+PROJECT_CONTEXT.md
+ISSUE_FORMAT.md
+.issuepilot/config.yml
+.issuepilot/plan.yml
 ```
 
-An explicit `--issue` is still used with `--no-linked-issues`; that flag disables automatic detection only. Issue titles and descriptions are secret-redacted before model analysis and report persistence. Issue content and its `updated_at` value are part of the cache identity, so editing requirements causes a fresh review even when the PR commit is unchanged.
-
-## IssuePilot project scheduling
-
-IssuePilot treats the repository-owned `.issuepilot/plan.yml` as the human-approved source of truth. The manually maintained plan contains task IDs, titles, assignees, short summaries, dependencies, and existing-work mappings—not future issue bodies. IssuePilot validates this file but never generates or rewrites the roadmap.
-
-After approval, IssuePilot creates at most one eligible issue per configured developer. It creates the next task only when every declared dependency and every earlier task for that developer is complete. At that point, it reads the latest project document and issue template, generates one current beginner-friendly description, and publishes the issue with a stable hidden task marker.
-
-A task is complete when either:
-
-- a pull request containing `Closes #<issue-number>` is merged; or
-- the issue is closed with the configured `completed-manually` label.
-
-An issue closed without either condition is treated as cancelled and does not unlock later work.
-
-### Repository setup
-
-Commit the project document and issue template to the target repository. Copy [`issuepilot.config.example.yml`](issuepilot.config.example.yml) to `.issuepilot/config.yml` and customize the repository and team:
+Copy [`issuepilot.config.example.yml`](issuepilot.config.example.yml) to `.issuepilot/config.yml`, then customize the repository and team:
 
 ```yaml
-repository: nandu-99/assessment-platform
+repository: acme/platform
 projectDocument: PROJECT_CONTEXT.md
 issueTemplate: ISSUE_FORMAT.md
 managedLabel: issuepilot
 manualCompletionLabel: completed-manually
 
 team:
-  - github: Roshan-Merugu
+  - github: backend-developer
     role: backend
-  - github: vaishh-samala
+  - github: frontend-developer
     role: frontend
 ```
 
-The configured users must be assignable collaborators in the target repository.
-
-Create `.issuepilot/plan.yml` manually and review changes through an ordinary pull request:
+Create and review the roadmap manually:
 
 ```yaml
 version: 3
@@ -192,113 +209,85 @@ tasks:
     title: Build the Backend API
     role: backend
     assignee: backend-developer
-    summary: Implement the approved API contract with validation, tenant isolation, and focused automated tests.
+    summary: Implement the approved contract with validation, authorization, and focused tests.
     dependencies: []
 
   - id: integrate-frontend-api
     title: Integrate the Frontend API
     role: frontend
     assignee: frontend-developer
-    summary: Connect the existing frontend flow to the approved backend contract with loading, success, empty, and error states.
+    summary: Connect the UI with loading, success, empty, and error states.
     dependencies:
       - build-backend-api
 ```
 
-Task order is the execution order for each assignee. Use `existingIssueNumber` to map work that already has a GitHub issue. Use `baselineCompleted: true` with `completionEvidence` only for work proven complete before IssuePilot begins managing the roadmap.
+Copy [`examples/issuepilot-sync.yml`](examples/issuepilot-sync.yml) to `.github/workflows/issuepilot-sync.yml`. Merging the approved roadmap or a closing implementation PR triggers synchronization automatically.
 
-Copy [`examples/issuepilot-sync.yml`](examples/issuepilot-sync.yml) into the target repository as `.github/workflows/issuepilot-sync.yml`.
+A task completes when either:
 
-The synchronization workflow uses `GEMINI_API_KEY` only when a newly eligible task needs its full issue description. OpenRouter is also supported through the action inputs.
+- a PR containing `Closes #<issue-number>` is merged; or
+- the issue is closed with the configured `completed-manually` label.
 
-### Approval and execution flow
+Closing an issue without either condition marks it cancelled and does not unlock dependent work.
 
-1. Create or edit `.issuepilot/plan.yml` manually using schema version 3.
-2. Review task ordering, summaries, assignments, dependencies, and existing-issue mappings through a normal pull request.
-3. Merge the plan change to approve it; this merge triggers synchronization.
-4. The workflow validates the plan and current GitHub progress.
-5. It generates current descriptions and creates at most one eligible issue per developer.
-6. Developers link their work with `Closes #<issue-number>`.
-7. Merging a linked PR automatically releases the next eligible issue.
-8. A manually completed task unlocks later work only when its issue is closed with the configured completion label.
-
-To inspect scheduling without writing to GitHub:
+Inspect scheduling without creating issues:
 
 ```bash
 node dist/cli.js issuepilot sync
 ```
 
-To apply the approved plan manually:
+Apply the approved plan manually:
 
 ```bash
 node dist/cli.js issuepilot sync --apply
 ```
 
-IssuePilot manages only tasks represented in the manual plan and issues containing its hidden task marker. It does not modify source code, generate roadmaps, merge PRs, or approve plan changes.
+## Configuration and validation
 
-## Configuration
+Copy [`reviewpilot.config.example.yml`](reviewpilot.config.example.yml) to `reviewpilot.config.yml` to customize review thresholds, context limits, ignored paths, and validation commands.
 
-Copy the example configuration if you want to customize behavior:
-
-```bash
-cp reviewpilot.config.example.yml reviewpilot.config.yml
-```
-
-The default review threshold is 75% confidence, and model findings are discarded unless they point to a real added line in the PR diff.
-
-### Validation commands
-
-Commands are arrays, not shell strings. This prevents pipes, redirects, substitutions, and chained commands:
+Validation commands are arrays rather than shell strings:
 
 ```yaml
 validation:
   commands:
     - [npm, run, typecheck, --if-present]
     - [npm, test]
-  timeoutMilliseconds: 120000
 ```
 
-Run them with explicit authorization:
-
-```bash
-reviewpilot review <url> --run-checks
-```
-
-ReviewPilot does not install dependencies. Validation therefore works when the required tooling is already available in the checkout or when commands rely only on repository-contained/runtime tooling. PR code is untrusted: use an isolated container before enabling validation for repositories you do not control.
-
-## Processing flow
-
-1. Parse and validate the GitHub PR URL.
-2. Optionally resolve explicit or closing-keyword issue references.
-3. Fetch PR metadata, issue requirements, changed-file metadata, and the full unified diff.
-4. Create a temporary Git checkout at the exact PR head SHA.
-5. Read repository instructions, changed files, matching tests, and references to changed symbols.
-6. Redact credentials and build a size-limited review context.
-7. Optionally execute allowlisted validation commands without a shell.
-8. Request a schema-constrained Gemini review with transient-error retries; fall back to OpenRouter when configured.
-9. Compare code with issue acceptance criteria when issue context exists.
-10. Reject low-confidence, duplicate, wrong-file, and wrong-line findings.
-11. Save Markdown/JSON reports and minimal non-secret review memory.
-12. Optionally create or update one marked PR summary comment with `--post-comment`.
-13. Remove the temporary checkout.
-
-## Memory
-
-`.reviewpilot/memory.json` contains only completed review metadata and results keyed by the exact commit SHA. It does not contain source-code snapshots or credentials. Repository context and working state remain in memory only for the duration of a review.
+ReviewPilot never installs dependencies in the reviewed checkout. Commands execute directly without a shell, and destructive or network-download commands are blocked. Automatic workflows do not enable validation because pull-request code is untrusted.
 
 ## Safety boundaries
 
-- `.env`, private keys, credential files, and common token patterns are excluded or redacted.
-- Git authentication is passed to the Git subprocess through its environment, not embedded in the repository URL.
-- Temporary checkouts are removed after success or failure.
-- Validation uses direct process execution with no shell.
-- Destructive and network download commands are blocked from validation configuration.
-- GitHub publishing is opt-in through `--post-comment`; autonomous code changes, approvals, change requests, merges, and pushes are not supported.
+- ReviewPilot does not modify reviewed source code, approve PRs, request changes, merge, or push.
+- IssuePilot creates only approved roadmap issues; it does not modify source code or generate the roadmap.
+- Common credential files and token patterns are excluded or redacted.
+- Temporary checkouts are removed after both success and failure.
+- GitHub publishing uses explicit, least-privilege workflow permissions.
+- Fork-origin PRs are skipped by the supplied automatic workflow.
+
+Read the full policy and threat boundaries in [SECURITY.md](SECURITY.md).
 
 ## Development
 
 ```bash
+npm ci --ignore-scripts
 npm run check
+npm run test:coverage
 npm run build
 ```
 
-The test suite uses mocked GitHub, Gemini, and OpenRouter responses and does not require API keys.
+The test suite mocks GitHub, Gemini, and OpenRouter responses and does not require credentials. Contribution guidance is in [CONTRIBUTING.md](CONTRIBUTING.md), common operational failures are covered in [TROUBLESHOOTING.md](TROUBLESHOOTING.md), and release history is recorded in [CHANGELOG.md](CHANGELOG.md).
+
+## Current limitations
+
+- Model quality and availability depend on the selected provider and quota.
+- Large repositories are represented through bounded changed-file and related-file context rather than a complete semantic index.
+- Automatic validation is intentionally disabled for untrusted PR workflows.
+- The supplied workflow skips fork pull requests.
+- IssuePilot requires a manually reviewed roadmap and does not decide product scope.
+- Neither agent implements changes or merges pull requests.
+
+## License
+
+[MIT](LICENSE)

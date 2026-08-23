@@ -11,7 +11,10 @@ export interface RunCommandOptions {
   inheritEnvironment?: boolean;
 }
 
-export async function runCommand(command: string[], options: RunCommandOptions): Promise<ValidationResult> {
+export async function runCommand(
+  command: string[],
+  options: RunCommandOptions
+): Promise<ValidationResult> {
   const [executable, ...args] = command;
   if (!executable) throw new Error("Cannot execute an empty command.");
 

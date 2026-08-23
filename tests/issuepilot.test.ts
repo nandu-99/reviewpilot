@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { issuePilotConfigSchema } from "../src/issuepilot/config.js";
 import { generateIssueDescription } from "../src/issuepilot/generator.js";
 import { validateIssuePilotPlan } from "../src/issuepilot/plan.js";
 import { evaluateTaskProgress, syncIssuePilot } from "../src/issuepilot/sync.js";
@@ -47,17 +48,34 @@ class MemoryRepository implements IssuePilotRepository {
   labels: string[] = [];
   created: Array<{ title: string; body: string; assignees: string[]; labels: string[] }> = [];
 
-  constructor(public issues: ManagedIssue[] = [], public pulls: RepositoryPullRequest[] = []) {}
-  async listIssues() { return this.issues; }
-  async listPullRequests() { return this.pulls; }
-  async ensureLabel(name: string) { this.labels.push(name); }
+  constructor(
+    public issues: ManagedIssue[] = [],
+    public pulls: RepositoryPullRequest[] = []
+  ) {}
+  async listIssues() {
+    return this.issues;
+  }
+  async listPullRequests() {
+    return this.pulls;
+  }
+  async ensureLabel(name: string) {
+    this.labels.push(name);
+  }
   async createIssue(input: { title: string; body: string; assignees: string[]; labels: string[] }) {
     this.created.push(input);
-    return { number: 100 + this.created.length, url: `https://github.com/acme/platform/issues/${100 + this.created.length}` };
+    return {
+      number: 100 + this.created.length,
+      url: `https://github.com/acme/platform/issues/${100 + this.created.length}`
+    };
   }
 }
 
-const managedIssue = (number: number, id: string, state: "open" | "closed" = "open", labels: string[] = []): ManagedIssue => ({
+const managedIssue = (
+  number: number,
+  id: string,
+  state: "open" | "closed" = "open",
+  labels: string[] = []
+): ManagedIssue => ({
   number,
   title: id,
   body: `Task\n<!-- issuepilot-task-id: ${id} -->`,
@@ -65,6 +83,17 @@ const managedIssue = (number: number, id: string, state: "open" | "closed" = "op
   assignees: [],
   labels,
   url: `https://github.com/acme/platform/issues/${number}`
+});
+
+describe("IssuePilot configuration", () => {
+  it("accepts valid GitHub logins containing digits", () => {
+    const parsed = issuePilotConfigSchema.parse({
+      repository: "nandu-99/reviewpilot-sandbox",
+      team: [{ github: "nandu-99", role: "javascript" }]
+    });
+
+    expect(parsed.team[0]?.github).toBe("nandu-99");
+  });
 });
 
 describe("IssuePilot plan validation", () => {
@@ -83,10 +112,7 @@ describe("IssuePilot plan validation", () => {
   it("rejects a dependency that deadlocks against one-developer sequencing", () => {
     const deadlocked = {
       ...plan,
-      tasks: [
-        task("one", "backend-dev", "backend", ["two"]),
-        task("two", "backend-dev", "backend")
-      ]
+      tasks: [task("one", "backend-dev", "backend", ["two"]), task("two", "backend-dev", "backend")]
     };
     expect(() => validateIssuePilotPlan(deadlocked, config)).toThrow(/cycle/i);
   });
@@ -95,7 +121,8 @@ describe("IssuePilot plan validation", () => {
 describe("IssuePilot issue description generation", () => {
   it("generates a just-in-time issue description from the approved task and template", async () => {
     const generate = vi.fn(async () => ({
-      description: "## Objective\n\nImplement the approved backend task with focused validation and automated tests.\n\n## Dependencies\n\n- Depends on #10\n\n## Out of Scope\n\nNo unrelated changes."
+      description:
+        "## Objective\n\nImplement the approved backend task with focused validation and automated tests.\n\n## Dependencies\n\n- Depends on #10\n\n## Out of Scope\n\nNo unrelated changes."
     }));
 
     const description = await generateIssueDescription({
@@ -125,8 +152,10 @@ describe("IssuePilot issue description generation", () => {
 
   it("retries when a description adds headings omitted by the repository template", async () => {
     const invalid = `${"## Objective\n\nImplement the approved task safely.\n\n"}## Acceptance Criteria\n\n- It works correctly.`;
-    const valid = "## Objective\n\nImplement the approved task safely with focused tests and clear error handling.\n\n## Deliverables\n\n- Focused implementation and tests.\n\n## Out of Scope\n\nNo unrelated work.";
-    const generate = vi.fn()
+    const valid =
+      "## Objective\n\nImplement the approved task safely with focused tests and clear error handling.\n\n## Deliverables\n\n- Focused implementation and tests.\n\n## Out of Scope\n\nNo unrelated work.";
+    const generate = vi
+      .fn()
       .mockResolvedValueOnce({ description: invalid })
       .mockResolvedValueOnce({ description: valid });
 
@@ -164,17 +193,26 @@ describe("IssuePilot synchronization", () => {
       merged: false,
       url: "https://github.com/acme/platform/pull/20"
     };
-    expect(evaluateTaskProgress(config, plan, [issue], [openPull])[0]).toMatchObject({ state: "in_progress" });
+    expect(evaluateTaskProgress(config, plan, [issue], [openPull])[0]).toMatchObject({
+      state: "in_progress"
+    });
 
-    const repository = new MemoryRepository([issue], [{ ...openPull, state: "closed", merged: true }]);
-    const generateDescription = vi.fn(async () =>
-      "## Objective\n\nImplement backend-2.\n\n## Dependencies\n\n- Depends on #10"
+    const repository = new MemoryRepository(
+      [issue],
+      [{ ...openPull, state: "closed", merged: true }]
+    );
+    const generateDescription = vi.fn(
+      async () => "## Objective\n\nImplement backend-2.\n\n## Dependencies\n\n- Depends on #10"
     );
     const result = await syncIssuePilot(config, plan, repository, true, generateDescription);
 
     expect(result.created.map((item) => item.taskId)).toContain("backend-2");
-    expect(repository.created.find((item) => item.title === "Implement backend-2")?.body).toContain("Depends on #10");
-    expect(repository.created.find((item) => item.title === "Implement backend-2")?.body).toContain("issuepilot-task-id: backend-2");
+    expect(repository.created.find((item) => item.title === "Implement backend-2")?.body).toContain(
+      "Depends on #10"
+    );
+    expect(repository.created.find((item) => item.title === "Implement backend-2")?.body).toContain(
+      "issuepilot-task-id: backend-2"
+    );
     expect(generateDescription).toHaveBeenCalledTimes(2);
     expect(repository.labels).toEqual(["issuepilot", "completed-manually"]);
   });
@@ -214,7 +252,12 @@ describe("IssuePilot synchronization", () => {
   });
 
   it("accepts a closed issue only with the manual completion label", () => {
-    const unverified = evaluateTaskProgress(config, plan, [managedIssue(10, "backend-1", "closed")], []);
+    const unverified = evaluateTaskProgress(
+      config,
+      plan,
+      [managedIssue(10, "backend-1", "closed")],
+      []
+    );
     expect(unverified[0]).toMatchObject({ state: "cancelled" });
 
     const approved = evaluateTaskProgress(

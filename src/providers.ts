@@ -33,7 +33,9 @@ export async function generateReviewWithFallback(
       failures.push(`${provider.name}/${provider.model}: ${toErrorMessage(error)}`);
       const next = providers[index + 1];
       if (next) {
-        onProgress(`${provider.name}/${provider.model} failed; falling back to ${next.name}/${next.model}...`);
+        onProgress(
+          `${provider.name}/${provider.model} failed; falling back to ${next.name}/${next.model}...`
+        );
       }
     }
   }
