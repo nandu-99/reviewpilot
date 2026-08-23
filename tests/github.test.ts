@@ -160,45 +160,50 @@ describe("GitHubClient", () => {
   });
 
   it("updates only the token owner's existing marked comment", async () => {
-    const fetchMock = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
-      const value = String(url);
-      if (value.endsWith("/user")) return new Response(JSON.stringify({ login: "reviewer" }));
-      if (value.includes("/comments?")) {
+    vi.stubEnv("GITHUB_ACTIONS", "false");
+    try {
+      const fetchMock = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+        const value = String(url);
+        if (value.endsWith("/user")) return new Response(JSON.stringify({ login: "reviewer" }));
+        if (value.includes("/comments?")) {
+          return new Response(
+            JSON.stringify([
+              {
+                id: 6,
+                body: "Copied <!-- marker -->",
+                html_url: "other",
+                user: { login: "someone-else" }
+              },
+              { id: 7, body: "Old <!-- marker -->", html_url: "old", user: { login: "reviewer" } }
+            ])
+          );
+        }
+        expect(value).toMatch(/\/issues\/comments\/7$/);
+        expect(init?.method).toBe("PATCH");
         return new Response(
-          JSON.stringify([
-            {
-              id: 6,
-              body: "Copied <!-- marker -->",
-              html_url: "other",
-              user: { login: "someone-else" }
-            },
-            { id: 7, body: "Old <!-- marker -->", html_url: "old", user: { login: "reviewer" } }
-          ])
+          JSON.stringify({
+            id: 7,
+            body: "New",
+            html_url: "https://github.com/acme/shop/pull/12#issuecomment-7",
+            user: { login: "reviewer" }
+          })
         );
-      }
-      expect(value).toMatch(/\/issues\/comments\/7$/);
-      expect(init?.method).toBe("PATCH");
-      return new Response(
-        JSON.stringify({
-          id: 7,
-          body: "New",
-          html_url: "https://github.com/acme/shop/pull/12#issuecomment-7",
-          user: { login: "reviewer" }
-        })
-      );
-    });
-    const client = new GitHubClient("token", fetchMock as typeof fetch);
+      });
+      const client = new GitHubClient("token", fetchMock as typeof fetch);
 
-    await expect(
-      client.upsertPullRequestComment(
-        parsePullRequestUrl("https://github.com/acme/shop/pull/12"),
-        "New <!-- marker -->",
-        "<!-- marker -->"
-      )
-    ).resolves.toEqual({
-      action: "updated",
-      url: "https://github.com/acme/shop/pull/12#issuecomment-7"
-    });
+      await expect(
+        client.upsertPullRequestComment(
+          parsePullRequestUrl("https://github.com/acme/shop/pull/12"),
+          "New <!-- marker -->",
+          "<!-- marker -->"
+        )
+      ).resolves.toEqual({
+        action: "updated",
+        url: "https://github.com/acme/shop/pull/12#issuecomment-7"
+      });
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it("updates the Actions bot comment without calling the user-only endpoint", async () => {
