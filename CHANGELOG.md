@@ -2,12 +2,26 @@
 
 All notable changes to ReviewPilot are documented in this file.
 
+## Unreleased
+
+### Added
+
+- Static SVG diagrams for the complete system, pull-request review, and task scheduling flows.
+- Tested GitHub workflow screenshots with simple result highlights.
+- Guided GitHub issue forms for bug reports and feature requests.
+
+### Changed
+
+- Rewrote and shortened the README for first-time visitors.
+- Simplified the architecture guide and moved detailed explanations out of the README.
+- Reduced documentation image size by keeping only the screenshots used by the project.
+
 ## [1.3.1] - 2026-08-23
 
 ### Added
 
-- Portfolio-focused architecture, security, contributing, and troubleshooting documentation.
-- Mermaid diagrams for the PR-review and dependency-aware scheduling flows.
+- Architecture, security, contributing, and troubleshooting documentation.
+- Static diagrams for the PR-review and dependency-aware scheduling flows.
 - Prettier formatting enforcement and Vitest coverage reporting with minimum thresholds.
 - Dependabot configuration, CodeQL analysis, and a pull-request template.
 
