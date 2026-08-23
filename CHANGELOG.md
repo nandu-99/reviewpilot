@@ -2,13 +2,12 @@
 
 All notable changes to ReviewPilot are documented in this file.
 
-## Unreleased
+## [1.3.2] - 2026-08-23
 
 ### Added
 
 - Static SVG diagrams for the complete system, pull-request review, and task scheduling flows.
 - Tested GitHub workflow screenshots with simple result highlights.
-- Guided GitHub issue forms for bug reports and feature requests.
 
 ### Changed
 
