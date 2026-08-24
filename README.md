@@ -9,6 +9,8 @@ ReviewPilot automatically reviews pull requests and creates the next project tas
 
 It runs inside GitHub Actions. You do not need to deploy or maintain a server.
 
+New to ReviewPilot? Follow the [complete setup and testing guide](docs/GETTING_STARTED.md).
+
 ## What it does
 
 | Agent           | Purpose                                                                                                                                      |
@@ -137,13 +139,14 @@ Local Markdown and JSON reports are saved in `.reviewpilot/reviews/`.
 
 ## Documentation
 
-| Document                              | Contents                                             |
-| ------------------------------------- | ---------------------------------------------------- |
-| [Architecture](ARCHITECTURE.md)       | Components, agent flows, state, and trust boundaries |
-| [Security](SECURITY.md)               | Permissions, secret handling, and threat boundaries  |
-| [Troubleshooting](TROUBLESHOOTING.md) | Common setup and provider errors                     |
-| [Contributing](CONTRIBUTING.md)       | Local development and pull-request checks            |
-| [Changelog](CHANGELOG.md)             | Release history                                      |
+| Document                                   | Contents                                             |
+| ------------------------------------------ | ---------------------------------------------------- |
+| [Getting started](docs/GETTING_STARTED.md) | Complete installation and end-to-end testing guide   |
+| [Architecture](ARCHITECTURE.md)            | Components, agent flows, state, and trust boundaries |
+| [Security](SECURITY.md)                    | Permissions, secret handling, and threat boundaries  |
+| [Troubleshooting](TROUBLESHOOTING.md)      | Common setup and provider errors                     |
+| [Contributing](CONTRIBUTING.md)            | Local development and pull-request checks            |
+| [Changelog](CHANGELOG.md)                  | Release history                                      |
 
 ## Current limits
 
