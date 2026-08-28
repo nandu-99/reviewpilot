@@ -74,6 +74,8 @@ The roadmap is written and reviewed by people. IssuePilot validates it but does 
 4. no other task for that assignee was selected during the same run.
 
 This limits each synchronization run to one new issue per available assignee.
+For managed issues that already exist, capacity follows their current GitHub assignees so that
+reassigning work immediately releases the previous assignee and occupies the new assignee.
 
 ### Completion and cancellation
 

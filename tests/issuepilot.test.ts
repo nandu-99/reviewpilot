@@ -74,13 +74,14 @@ const managedIssue = (
   number: number,
   id: string,
   state: "open" | "closed" = "open",
-  labels: string[] = []
+  labels: string[] = [],
+  assignees: string[] = []
 ): ManagedIssue => ({
   number,
   title: id,
   body: `Task\n<!-- issuepilot-task-id: ${id} -->`,
   state,
-  assignees: [],
+  assignees,
   labels,
   url: `https://github.com/acme/platform/issues/${number}`
 });
@@ -248,6 +249,29 @@ describe("IssuePilot synchronization", () => {
     expect(result.progress[0]).toMatchObject({
       state: "blocked",
       reason: "Task backend-existing is already in progress for this assignee."
+    });
+  });
+
+  it("uses the current GitHub assignee when an existing task has been reassigned", async () => {
+    const reassignedPlan: IssuePilotPlan = {
+      version: 3,
+      project: "Platform",
+      repository: "acme/platform",
+      tasks: [
+        task("reassigned-work", "backend-dev", "backend"),
+        task("backend-next", "backend-dev", "backend"),
+        task("frontend-next", "frontend-dev", "frontend")
+      ]
+    };
+    const reassignedIssue = managedIssue(42, "reassigned-work", "open", [], ["frontend-dev"]);
+    const repository = new MemoryRepository([reassignedIssue]);
+
+    const result = await syncIssuePilot(config, reassignedPlan, repository, false);
+
+    expect(result.wouldCreate.map((item) => item.taskId)).toEqual(["backend-next"]);
+    expect(result.progress.find((item) => item.task.id === "frontend-next")).toMatchObject({
+      state: "blocked",
+      reason: "Task reassigned-work is already in progress for this assignee."
     });
   });
 

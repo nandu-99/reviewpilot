@@ -148,6 +148,12 @@ export type IssueDescriptionGenerator = (
   progress: TaskProgress[]
 ) => Promise<string>;
 
+function currentAssignees(item: TaskProgress): Set<string> {
+  const assignees =
+    item.issue && item.issue.assignees.length > 0 ? item.issue.assignees : [item.task.assignee];
+  return new Set(assignees.map((assignee) => assignee.toLowerCase()));
+}
+
 export async function syncIssuePilot(
   config: IssuePilotConfig,
   plan: IssuePilotPlan,
@@ -180,7 +186,7 @@ export async function syncIssuePilot(
     const activeForAssignee = progress.find(
       (candidate) =>
         candidate.task.id !== item.task.id &&
-        candidate.task.assignee.toLowerCase() === assignee &&
+        currentAssignees(candidate).has(assignee) &&
         candidate.state === "in_progress"
     );
     if (activeForAssignee) {
@@ -196,7 +202,7 @@ export async function syncIssuePilot(
 
     const earlierForAssignee = progress
       .slice(0, progress.indexOf(item))
-      .filter((candidate) => candidate.task.assignee.toLowerCase() === assignee);
+      .filter((candidate) => currentAssignees(candidate).has(assignee));
     if (earlierForAssignee.some((candidate) => candidate.state !== "completed")) {
       item.state = "blocked";
       item.reason = "An earlier task for this assignee is not complete.";
