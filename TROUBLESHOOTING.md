@@ -97,9 +97,9 @@ Editing a linked issue changes the cache identity automatically.
 Read the synchronization output. A task is intentionally blocked when:
 
 - one of its dependencies is incomplete;
-- an earlier task for the same assignee is incomplete;
+- an earlier task for the same assignee is still active;
 - the assignee already has a managed issue in progress;
-- a prior issue was closed without valid completion evidence; or
+- a dependency was closed without valid completion evidence; or
 - an existing issue/PR mapping already represents the task.
 
 Run a dry synchronization locally to inspect decisions without writing:
@@ -115,7 +115,7 @@ A closed issue is complete only when:
 - a linked PR containing `Closes #<issue-number>` was merged; or
 - the issue had the configured `completed-manually` label when closed.
 
-Closing it without either condition intentionally records cancellation. Reopen and complete the issue correctly, or update the approved roadmap if the task is no longer required.
+Closing it without either condition intentionally records cancellation. This releases the assignee for their next independent task, but dependent tasks remain blocked. Reopen and complete the issue correctly, or update the approved roadmap if the dependency is no longer required.
 
 ## An existing task was duplicated
 
@@ -123,7 +123,7 @@ Map pre-existing work with `existingIssueNumber` in `.issuepilot/plan.yml`. Issu
 
 ## A dependency-ready task still waits
 
-IssuePilot also enforces sequential work per assignee. Even with completed dependencies, a task waits while that developer has another managed task in progress or an earlier roadmap task remains incomplete.
+IssuePilot also enforces sequential work per assignee. Even with completed dependencies, a task waits while that developer has another managed task in progress or an earlier roadmap task remains active. Completed and cancelled earlier tasks do not consume assignee capacity.
 
 ## The workflow did not run after a merge
 

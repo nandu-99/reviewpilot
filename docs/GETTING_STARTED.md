@@ -295,6 +295,7 @@ The label must be added before the issue is closed. Dependent tasks may then be 
 ### Cancelled
 
 Closing an issue without a merged closing PR or the manual-completion label marks its task as cancelled. Cancellation does not unlock dependent tasks.
+It does allow the assignee's next independent task to be created.
 
 ## 8. Verify the installation
 
@@ -307,7 +308,7 @@ Confirm all of the following:
 - A manual IssuePilot run creates only eligible work.
 - Merging a closing PR completes its task and triggers IssuePilot.
 - A manually completed issue unlocks dependent work.
-- A cancelled issue does not unlock dependent work.
+- A cancelled issue releases assignee capacity but does not unlock dependent work.
 - IssuePilot does not create duplicate managed issues.
 
 ## Common problems

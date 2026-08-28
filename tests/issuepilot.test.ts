@@ -275,6 +275,29 @@ describe("IssuePilot synchronization", () => {
     });
   });
 
+  it("releases independent work after cancellation but keeps dependants blocked", async () => {
+    const cancellationPlan: IssuePilotPlan = {
+      version: 3,
+      project: "Platform",
+      repository: "acme/platform",
+      tasks: [
+        task("cancelled-work", "backend-dev", "backend"),
+        task("backend-next", "backend-dev", "backend"),
+        task("cancelled-dependant", "frontend-dev", "frontend", ["cancelled-work"])
+      ]
+    };
+    const cancelledIssue = managedIssue(42, "cancelled-work", "closed", [], ["backend-dev"]);
+    const repository = new MemoryRepository([cancelledIssue]);
+
+    const result = await syncIssuePilot(config, cancellationPlan, repository, false);
+
+    expect(result.wouldCreate.map((item) => item.taskId)).toEqual(["backend-next"]);
+    expect(result.progress.find((item) => item.task.id === "cancelled-dependant")).toMatchObject({
+      state: "blocked",
+      reason: "One or more task dependencies are not complete."
+    });
+  });
+
   it("accepts a closed issue only with the manual completion label", () => {
     const unverified = evaluateTaskProgress(
       config,

@@ -42,7 +42,7 @@ Issue linking is optional. ReviewPilot understands references such as `Closes #4
 IssuePilot reads a plan that your team reviews and stores in `.issuepilot/plan.yml`. It creates a task only when:
 
 - all dependencies are complete;
-- the developer's earlier task is complete; and
+- the developer's earlier task is complete or cancelled; and
 - the developer has no other managed issue in progress.
 
 A task is complete after a linked closing PR is merged. It can also be completed manually by adding the configured `completed-manually` label before closing the issue. Closing without either signal means cancellation, so dependent work stays blocked.

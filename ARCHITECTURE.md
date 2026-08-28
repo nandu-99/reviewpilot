@@ -69,7 +69,7 @@ The roadmap is written and reviewed by people. IssuePilot validates it but does 
 `src/issuepilot/sync.ts` rebuilds task progress from GitHub on every run. A task is ready only when:
 
 1. all dependencies are complete;
-2. every earlier task for the same assignee is complete;
+2. every earlier task for the same assignee is complete or cancelled;
 3. the assignee has no managed task in progress; and
 4. no other task for that assignee was selected during the same run.
 
@@ -85,6 +85,7 @@ A task is complete when:
 - the issue is closed with the configured manual-completion label.
 
 Closing an issue without either signal marks it as cancelled. A cancelled task does not unlock dependent tasks.
+It does release the assignee's capacity, allowing their next independent task to start.
 
 ### Just-in-time issue descriptions
 

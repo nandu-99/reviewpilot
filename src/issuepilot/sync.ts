@@ -203,9 +203,13 @@ export async function syncIssuePilot(
     const earlierForAssignee = progress
       .slice(0, progress.indexOf(item))
       .filter((candidate) => currentAssignees(candidate).has(assignee));
-    if (earlierForAssignee.some((candidate) => candidate.state !== "completed")) {
+    if (
+      earlierForAssignee.some(
+        (candidate) => candidate.state !== "completed" && candidate.state !== "cancelled"
+      )
+    ) {
       item.state = "blocked";
-      item.reason = "An earlier task for this assignee is not complete.";
+      item.reason = "An earlier task for this assignee is still active.";
       continue;
     }
 
