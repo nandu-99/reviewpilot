@@ -37,7 +37,7 @@
     "node": ">=22"
   },
   "dependencies": {
-    "@google/genai": "^2.18.0",
+    "@google/genai": "^2.23.0",
     "commander": "^14.0.0",
     "dotenv": "^17.2.2",
     "yaml": "^2.8.1",
